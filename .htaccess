@@ -11,11 +11,16 @@ Options -Indexes
     # and set to your actual subfolder path:
     # RewriteBase /lendro/
 
-    # Let real files and directories through unchanged
+    # ── Root → frontend ──────────────────────────────────────────────────────
+    # https://yourdomain.com/lendro/  opens the SPA directly
+    RewriteRule ^$ public/index.php [L,QSA]
+    RewriteRule ^index\.php$ public/index.php [L,QSA]
+
+    # ── Let real files and directories through unchanged ──────────────────────
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
 
-    # Append .php to extensionless requests if the .php file exists
+    # Append .php to extensionless API requests if the .php file exists
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.php -f
     RewriteRule ^(.+?)/?$ $1.php [L,QSA]
 </IfModule>
