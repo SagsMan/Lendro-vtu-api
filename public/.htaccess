@@ -1,0 +1,14 @@
+# public/.htaccess
+# Ensures https://yourdomain.com/lendro/public/ also loads the frontend,
+# and prevents directory listing of the public folder.
+
+Options -Indexes
+
+# Serve index.php as the default file for this directory
+DirectoryIndex index.php
+
+# Block direct access to any non-PHP file in this folder
+<FilesMatch "\.(sql|log|conf|sh|json|md)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
