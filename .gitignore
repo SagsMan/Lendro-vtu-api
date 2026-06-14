@@ -1,0 +1,20 @@
+# Environment and secrets — never commit these
+.env
+.env.local
+api/v1/configs.local.php
+
+# PHP logs and caches
+*.log
+error_log
+
+# macOS
+.DS_Store
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+
+# Composer (if you add it later)
+vendor/
+composer.lock
