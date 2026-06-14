@@ -1,0 +1,11 @@
+# api/v1/.htaccess
+# Blocks direct browser access to internal PHP classes and helpers.
+# Only the auth/, client/, cronjob/, webhooks/ endpoints should be reachable.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block any direct request to files in this directory root (not subdirectories)
+    RewriteCond %{REQUEST_URI} !/(auth|client|cronjob|webhooks)/
+    RewriteRule ^[^/]+\.php$ - [F,L]
+</IfModule>
