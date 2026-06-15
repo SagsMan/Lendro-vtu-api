@@ -1,20 +1,15 @@
-# Lendro VTU — Apache configuration
+# Lendro VTU — Apache / LiteSpeed configuration
 # Place this file in the project root (same folder as api/ and public/)
 
+# Serve index.php by default — this is the root entry point
+DirectoryIndex index.php
+
+# Disable directory listing (belt-and-suspenders with index.php above)
 Options -Indexes
 
 # ── Clean URL rewriting ───────────────────────────────────────────────────────
 <IfModule mod_rewrite.c>
     RewriteEngine On
-
-    # If deploying inside a subdirectory (e.g. public_html/lendro/) uncomment
-    # and set to your actual subfolder path:
-    # RewriteBase /lendro/
-
-    # ── Root → frontend ──────────────────────────────────────────────────────
-    # https://yourdomain.com/lendro/  opens the SPA directly
-    RewriteRule ^$ public/index.php [L,QSA]
-    RewriteRule ^index\.php$ public/index.php [L,QSA]
 
     # ── Let real files and directories through unchanged ──────────────────────
     RewriteCond %{REQUEST_FILENAME} !-f
