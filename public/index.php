@@ -385,7 +385,7 @@
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
-const API = '../api/v1'; // adjust if your folder structure differs
+const API = '/api/v1'; // root of your domain points to the lendro folder
 let currentUser   = null;
 let allServices   = {};         // { airtime: { mtn: [...] }, data: {...}, bill: {...} }
 let selectedTab   = 'airtime';
