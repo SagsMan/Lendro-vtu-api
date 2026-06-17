@@ -1,51 +1,40 @@
 # Lendro VTU — Apache / LiteSpeed configuration
-# Place this file in the project root (same folder as api/ and public/)
+  DirectoryIndex index.php
+  Options -Indexes
 
-# Serve index.php by default — this is the root entry point
-DirectoryIndex index.php
+  <IfModule mod_rewrite.c>
+      RewriteEngine On
+      RewriteBase /
 
-# Disable directory listing (belt-and-suspenders with index.php above)
-Options -Indexes
+      # Let real files and directories through unchanged
+      RewriteCond %{REQUEST_FILENAME} !-f
+      RewriteCond %{REQUEST_FILENAME} !-d
 
-# ── Clean URL rewriting ───────────────────────────────────────────────────────
-<IfModule mod_rewrite.c>
-    RewriteEngine On
+      # Append .php to extensionless API requests if the .php file exists
+      RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.php -f
+      RewriteRule ^(.+?)/?$ $1.php [L,QSA]
+  </IfModule>
 
-    # ── Let real files and directories through unchanged ──────────────────────
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
+  # Block sensitive files
+  <FilesMatch "^(configs|db|ProviderInterface|ProviderFactory|ProviderResponseNormalizer|Normalizer|ServiceManager|TransactionService|IdempotencyService|BaseProvider)\.php$">
+      Order allow,deny
+      Deny from all
+  </FilesMatch>
+  <FilesMatch "^(helpers|QueueHelper|fxn-general|process_transactions|populate-services|reconcile_transactions|lendro-worker\.conf|dbcheck|killconn|import_schema|check_services)\.php$">
+      Order allow,deny
+      Deny from all
+  </FilesMatch>
+  <FilesMatch "^\.">
+      Order allow,deny
+      Deny from all
+  </FilesMatch>
 
-    # Append .php to extensionless API requests if the .php file exists
-    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.php -f
-    RewriteRule ^(.+?)/?$ $1.php [L,QSA]
-</IfModule>
+  <IfModule mod_php.c>
+      php_flag display_errors Off
+      php_flag log_errors On
+      php_value session.cookie_httponly 1
+      php_value session.use_strict_mode 1
+  </IfModule>
 
-# ── Security: block direct access to sensitive internals ─────────────────────
-# Block configs, DB bootstrap, base classes, and service files
-<FilesMatch "^(configs|db|ProviderInterface|ProviderFactory|ProviderResponseNormalizer|Normalizer|ServiceManager|TransactionService|IdempotencyService|BaseProvider)\.php$">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# Block helpers and workers from being called directly via HTTP
-<FilesMatch "^(helpers|QueueHelper|fxn-general|process_transactions|populate-services|reconcile_transactions|lendro-worker\.conf)$">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# Block dot files (e.g. .git, .env)
-<FilesMatch "^\.">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# ── PHP settings (shared hosting) ────────────────────────────────────────────
-<IfModule mod_php.c>
-    php_flag display_errors Off
-    php_flag log_errors On
-    php_value session.cookie_httponly 1
-    php_value session.use_strict_mode 1
-</IfModule>
-
-# ── MIME types ────────────────────────────────────────────────────────────────
-AddType application/json .json
+  AddType application/json .json
+  
