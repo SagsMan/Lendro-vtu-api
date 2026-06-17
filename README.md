@@ -1,500 +1,708 @@
 # Lendro VTU API
 
-A multi-provider Virtual Top-Up (VTU) API built in PHP. It pulls products from multiple VTU providers, normalises them into a single catalogue, marks up prices, and lets users buy airtime, data, electricity, cable TV subscriptions, and exam PINs — all through one clean interface.
+**Live Site:** https://lendro.trackd.live  
+**API Base URL:** https://lendro.trackd.live/api/v1  
+**Contact:** sagirugarba24@gmail.com | 08065488451
 
 ---
 
-## Objectives solved
-
-| # | Objective | Status |
-|---|-----------|--------|
-| 1 | Pull products from multiple VTU providers and normalise to our service catalogue | ✅ Done |
-| 2 | Apply markup to provider prices and save normalised services to database | ✅ Done |
-| 3 | Display services on a UI for users to pick (airtime, data, electricity, cable, exam PIN) | ✅ Done |
-| 4 | User picks a service → API debits wallet, queues transaction, loops through providers | ✅ Done |
-| 5 | Background worker sends purchase request to provider and logs the result | ✅ Done |
-| 6 | Success → mark complete; Pending → reconcile; Failed → refund wallet | ✅ Done |
-| 7 | Webhook handler processes real-time provider callbacks | ✅ Done |
-| 8 | Idempotency protection — no duplicate purchases on network retries | ✅ Done |
+A multi-provider Virtual Top-Up (VTU) API built in PHP. It lets your users buy airtime, data bundles, electricity tokens, cable TV subscriptions, and exam PINs — all in one place. Prices are pulled from multiple VTU providers, normalised, marked up, and served through one clean JSON interface.
 
 ---
 
-## How it works (architecture)
+## Table of Contents
+
+1. [How It Works](#how-it-works)
+2. [Authentication](#authentication)
+3. [API Endpoints](#api-endpoints)
+   - [Register](#1-register)
+   - [Login](#2-login)
+   - [Logout](#3-logout)
+   - [Get Services](#4-get-services)
+   - [Place an Order](#5-place-an-order)
+   - [Check Order Status](#6-check-order-status)
+   - [Transaction History](#7-transaction-history)
+   - [Wallet Balance](#8-wallet-balance)
+   - [Provider Webhook](#9-provider-webhook)
+4. [Order Flow (Step by Step)](#order-flow-step-by-step)
+5. [Transaction Statuses](#transaction-statuses)
+6. [Error Responses](#error-responses)
+7. [Database Tables](#database-tables)
+8. [Project Structure](#project-structure)
+9. [Contact](#contact)
+
+---
+
+## How It Works
 
 ```
-User Request (POST /client/order.php)
-    ↓
-Validate + Debit Wallet
-    ↓
-Create PENDING transaction
-    ↓
-Push to transaction_queue
-    ↓
-Return "processing" to user immediately ← fast response, no waiting
-
-BACKGROUND WORKER (workers/process_transactions.php)
-    ↓ picks up queue item
-    ↓ loops through providers in priority order
-    ↓ calls provider API
-
-    IF SUCCESS  → mark transaction "success"    → notify user
-    IF PENDING  → mark "awaiting_reconciliation" → reconciler checks later
-    IF FAILED   → try next provider
-    IF ALL FAIL → refund wallet, mark "reversed"
-
-RECONCILIATION CRON (cronjob/reconcile_transactions.php)
-    ↓ checks pending transactions with provider
-    IF SUCCESS  → finalize + notify
-    IF FAILED   → refund + notify
-    IF MAX ATTEMPTS → give up + refund
-
-WEBHOOK (webhooks/provider.php)
-    ↓ provider POSTs real-time result
-    ↓ normalise payload, update transaction and queue
+1. User registers/logs in → gets a session cookie
+2. App fetches available services → shows them to the user
+3. User picks a service → App calls POST /client/order
+4. Wallet is debited instantly → transaction queued in background
+5. App polls GET /client/status every 5 seconds
+6. Background worker sends request to VTU provider
+7. If SUCCESS  → transaction marked done, user notified
+8. If FAILED   → wallet refunded automatically
+9. If PENDING  → reconciler checks again later
 ```
+
+> **Important:** All endpoints under `/client/` require the user to be logged in. The session is cookie-based — just keep credentials: "include" in your fetch calls.
 
 ---
 
-## Project structure
+## Authentication
 
-```
-api/
-└── v1/
-    ├── configs.php                    ← environment config, markup rate, API keys
-    ├── db.php                         ← database connection bootstrap
-    ├── ProviderInterface.php          ← contract every provider must implement
-    ├── ProviderFactory.php            ← builds provider instances from DB config
-    ├── ProviderResponseNormalizer.php ← maps provider status → success/pending/failed
-    ├── Normalizer.php                 ← maps webhook payloads from any provider
-    ├── ServiceManager.php             ← service catalogue queries
-    ├── TransactionService.php         ← wallet debit + queue push
-    ├── IdempotencyService.php         ← prevents duplicate transactions
-    ├── providers/
-    │   ├── BaseProvider.php           ← shared HTTP helper
-    │   ├── ProviderA.php              ← CheapDataHub integration
-    │   ├── ProviderB.php              ← ConnectBridge integration
-    │   └── ProviderProductsA.php     ← scrapes CheapDataHub plan table
-    ├── helpers/
-    │   ├── helpers.php                ← auth, phone, wallet, ref helpers
-    │   ├── QueueHelper.php            ← queue status update helpers
-    │   └── fxn-general.php           ← API response cache helpers
-    ├── auth/
-    │   ├── login.php                  ← POST — authenticate and start session
-    │   ├── register.php               ← POST — create new account
-    │   └── logout.php                 ← POST — destroy session
-    ├── client/
-    │   ├── services.php               ← GET  — list all services (grouped)
-    │   ├── order.php                  ← POST — place a purchase order
-    │   ├── status.php                 ← GET  — poll transaction status by ref
-    │   ├── wallet.php                 ← GET  — wallet balance + recent transactions
-    │   └── transactions.php           ← GET  — full transaction history
-    ├── cronjob/
-    │   ├── populate-services.php      ← syncs provider catalogues → services table
-    │   └── reconcile_transactions.php ← follows up on pending provider responses
-    ├── workers/
-    │   ├── process_transactions.php   ← worker that calls provider APIs
-    │   └── lendro-worker.conf         ← Supervisor config (VPS only)
-    └── webhooks/
-        └── provider.php               ← receives real-time callbacks from providers
-
-public/
-└── index.php                          ← single-page frontend (login, buy, history)
-
-dbmlendro.sql                          ← complete database schema
-```
-
----
-
-## Deploying on cPanel (Shared Hosting)
-
-### Requirements
-
-- PHP **8.0** or higher (PHP 8.1+ recommended)
-- MySQL 5.7+ or MariaDB 10.3+
-- cURL enabled (for provider API calls)
-- cPanel File Manager or FTP access
-
----
-
-### Step 1 — Download the repo
-
-On your local machine, download or clone the repo:
-
-```bash
-git clone https://github.com/SagsMan/Lendro-vtu-api.git
-```
-
-Or download the ZIP from GitHub → **Code → Download ZIP**, then unzip it.
-
----
-
-### Step 2 — Upload files to cPanel
-
-1. Log in to **cPanel → File Manager**.
-2. Navigate to `public_html` (or your subdomain/addon domain folder).
-3. Create a folder called `lendro` (or leave it in the root).
-4. Upload **all project files** into that folder, so the structure looks like:
-
-```
-public_html/
-└── lendro/
-    ├── api/
-    ├── public/
-    ├── dbmlendro.sql
-    └── ...
-```
-
-> **Tip:** Use an FTP client like FileZilla for faster bulk uploads.
-
----
-
-### Step 3 — Create the MySQL database
-
-1. In cPanel, go to **MySQL Databases**.
-2. Create a new database — e.g. `yourusername_lendro`.
-3. Create a new user — e.g. `yourusername_lendrouser` — and set a strong password.
-4. Add the user to the database and grant **All Privileges**.
-5. Note down:
-   - Database name: `yourusername_lendro`
-   - Database user: `yourusername_lendrouser`
-   - Password: `yourpassword`
-   - Host: `localhost`
-
----
-
-### Step 4 — Import the database schema
-
-1. In cPanel, go to **phpMyAdmin**.
-2. Click your database (`yourusername_lendro`) in the left panel.
-3. Click the **Import** tab at the top.
-4. Click **Choose File**, select `dbmlendro.sql` from your computer.
-5. Click **Go**.
-
-You should see a success message and the tables listed on the left.
-
----
-
-### Step 5 — Configure `configs.php`
-
-Open `api/v1/configs.php` in the File Manager editor (or via FTP) and update:
-
-```php
-// ── Database credentials ──────────────────────────────────────────────────────
-$host     = 'localhost';
-$dbname   = 'yourusername_lendro';
-$username = 'yourusername_lendrouser';
-$password = 'yourpassword';
-
-// ── App base URL ──────────────────────────────────────────────────────────────
-define('BASE_URL', 'https://yourdomain.com/lendro');
-
-// ── Markup on provider cost prices ───────────────────────────────────────────
-define('MARKUP', 0.15);  // 15% — adjust as you like
-```
-
-Also update the frontend API base URL in `public/index.php` (line ~388):
+Sessions are **cookie-based**. After a successful login, the server sets a PHP session cookie. Send it automatically on every subsequent request by using:
 
 ```js
-const API = '/lendro/api/v1';  // adjust path to match where you uploaded the project
+fetch(url, { credentials: 'include' })
 ```
 
----
+If a protected endpoint is called without a valid session, you'll get:
 
-### Step 6 — Add provider API keys to the database
-
-In **phpMyAdmin**, run these SQL queries (replace with your real keys):
-
-```sql
-UPDATE providers SET api_key = 'your-cheapdatahub-api-key' WHERE slug = 'cheapdatahub';
-UPDATE providers SET api_key = 'your-connectbridge-api-key' WHERE slug = 'connectbridge';
-```
-
-To get keys:
-- **CheapDataHub:** register at [cheapdatahub.ng](https://www.cheapdatahub.ng), go to your dashboard → API settings.
-- **ConnectBridge:** register at [connectbridge.com.ng](https://connectbridge.com.ng), go to your dashboard → API settings.
-
----
-
-### Step 7 — Set up cron jobs in cPanel
-
-Go to cPanel → **Cron Jobs**.
-
-Add the following two cron jobs (replace `/home/yourusername/public_html/lendro` with your actual path):
-
-#### Service sync — runs every 6 hours
-```
-0 */6 * * *   php /home/yourusername/public_html/lendro/api/v1/cronjob/populate-services.php >> /home/yourusername/logs/lendro-sync.log 2>&1
-```
-This pulls the latest product catalogue from both providers and updates the services table.
-
-#### Transaction worker — runs every minute
-```
-* * * * *   php /home/yourusername/public_html/lendro/api/v1/workers/process_transactions.php >> /home/yourusername/logs/lendro-worker.log 2>&1
-```
-On shared hosting you cannot run a permanent background process, so this cron triggers the worker every minute to process any queued transactions.
-
-#### Reconciliation — runs every 15 minutes
-```
-*/15 * * * *   php /home/yourusername/public_html/lendro/api/v1/cronjob/reconcile_transactions.php >> /home/yourusername/logs/lendro-reconcile.log 2>&1
-```
-This follows up on any transactions still marked `pending` with the provider.
-
-> **Log folder:** Create a `logs/` folder in your home directory first, or change the log paths to somewhere writable (e.g. `/home/yourusername/public_html/lendro/logs/`).
-
----
-
-### Step 8 — Set provider webhook URLs
-
-In each provider's dashboard, set the callback/webhook URL to:
-
-```
-https://yourdomain.com/lendro/api/v1/webhooks/provider.php?provider=cheapdatahub
-https://yourdomain.com/lendro/api/v1/webhooks/provider.php?provider=connectbridge
-```
-
-This allows providers to notify you of transaction results in real time (instead of waiting for polling).
-
----
-
-### Step 9 — Run the first service sync
-
-Visit this URL in your browser once to populate the services table immediately (rather than waiting for the cron):
-
-```
-https://yourdomain.com/lendro/api/v1/cronjob/populate-services.php
-```
-
-You should see a JSON response listing synced services.
-
----
-
-### Step 10 — Open the frontend
-
-Visit:
-
-```
-https://yourdomain.com/lendro/public/index.php
-```
-
-Register an account, fund your wallet, and place a test order.
-
----
-
-## Testing checklist
-
-Work through these steps in order to confirm everything is wired up correctly.
-
-### 1. Check database connection
-```
-https://yourdomain.com/lendro/api/v1/auth/login.php
-```
-Open in a browser — it should return JSON like `{"status":"failed","message":"Email and password are required."}` (not a PHP error or blank page). A PHP error here means the DB connection failed — recheck `configs.php`.
-
-### 2. Register a test account
-Use **Postman**, **Insomnia**, or the curl command below:
-
-```bash
-curl -X POST https://yourdomain.com/lendro/api/v1/auth/register.php \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test User","email":"test@example.com","phone":"08012345678","password":"test1234"}'
-```
-
-Expected response:
-```json
-{"status":"success","message":"Account created successfully.","user":{...}}
-```
-
-### 3. Log in
-
-```bash
-curl -c cookies.txt -X POST https://yourdomain.com/lendro/api/v1/auth/login.php \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"test1234"}'
-```
-
-`-c cookies.txt` saves the session cookie for subsequent requests.
-
-Expected response:
-```json
-{"status":"success","user":{"id":1,"name":"Test User","email":"test@example.com",...}}
-```
-
-### 4. Fund the test wallet (directly in phpMyAdmin)
-
-Since Squad payment gateway is not wired up yet, fund the wallet directly via SQL:
-
-```sql
-UPDATE wallets SET balance = 5000.00 WHERE userid = 1;
-```
-
-### 5. Fetch available services
-
-```bash
-curl -b cookies.txt https://yourdomain.com/lendro/api/v1/client/services.php
-```
-
-Expected: grouped JSON with airtime, data, electricity, cable, education services.
-
-If this returns an empty list, run the service sync (Step 9) first.
-
-### 6. Place a test order
-
-Get a `service_id` from the services response above, then:
-
-```bash
-curl -b cookies.txt -X POST https://yourdomain.com/lendro/api/v1/client/order.php \
-  -H "Content-Type: application/json" \
-  -H "X-Idempotency-Key: test-order-001" \
-  -d '{"service_id":5,"phone":"08012345678"}'
-```
-
-Expected:
 ```json
 {
-  "status":"success",
-  "message":"Order placed successfully. Processing in progress.",
-  "reference":"LDR-XXXXXXXX",
-  "transaction_status":"pending"
+  "status": "failed",
+  "message": "Unauthorized. Please log in."
+}
+```
+HTTP status: `401`
+
+---
+
+## API Endpoints
+
+All requests and responses use **JSON**. Always set the header:
+```
+Content-Type: application/json
+```
+
+---
+
+### 1. Register
+
+**Create a new user account.**
+
+```
+POST https://lendro.trackd.live/api/v1/auth/register
+```
+
+**Request Body:**
+```json
+{
+  "name":     "Sagiru Garba",
+  "email":    "sagirugarba24@gmail.com",
+  "phone":    "08065488451",
+  "password": "YourPassword123"
 }
 ```
 
-The wallet should be debited immediately. The transaction is now in the queue.
+| Field      | Type   | Required | Notes                        |
+|------------|--------|----------|------------------------------|
+| `name`     | string | ✅ Yes   | User's full name             |
+| `email`    | string | ✅ Yes   | Must be a valid email        |
+| `phone`    | string | ✅ Yes   | Nigerian phone number        |
+| `password` | string | ✅ Yes   | Minimum 8 characters         |
 
-### 7. Check transaction status
-
-```bash
-curl -b cookies.txt "https://yourdomain.com/lendro/api/v1/client/status.php?ref=LDR-XXXXXXXX"
+**Success Response** — HTTP 201:
+```json
+{
+  "status":  "success",
+  "message": "Account created successfully. Please log in.",
+  "user_id": 42
+}
 ```
 
-Keep polling every 10–15 seconds. Status will move from `pending` → `processing` → `success` (or `reversed` if the provider rejects it) once the cron worker runs.
+**Failure Responses:**
 
-### 8. Check wallet balance
-
-```bash
-curl -b cookies.txt https://yourdomain.com/lendro/api/v1/client/wallet.php
+Email already taken — HTTP 409:
+```json
+{
+  "status":  "failed",
+  "message": "An account with this email already exists."
+}
 ```
 
-### 9. Full transaction history
-
-```bash
-curl -b cookies.txt https://yourdomain.com/lendro/api/v1/client/transactions.php
+Validation errors — HTTP 422:
+```json
+{
+  "status": "failed",
+  "errors": [
+    "A valid email address is required.",
+    "Password must be at least 8 characters."
+  ]
+}
 ```
 
-### 10. Test the frontend UI
-
-Open `https://yourdomain.com/lendro/public/index.php` in a browser. Log in with the test account and go through: services list → pick a plan → enter phone → confirm order → poll status.
-
 ---
 
-## API endpoints reference
+### 2. Login
 
-All endpoints return JSON. Protected endpoints require a valid session cookie (log in first).
-
-### Auth
-
-| Method | Endpoint | Body / Params |
-|--------|----------|---------------|
-| POST | `/api/v1/auth/register.php` | `name`, `email`, `phone`, `password` |
-| POST | `/api/v1/auth/login.php` | `email`, `password` |
-| POST | `/api/v1/auth/logout.php` | — |
-
-### Services
-
-| Method | Endpoint | Params |
-|--------|----------|--------|
-| GET | `/api/v1/client/services.php` | — |
-| GET | `/api/v1/client/services.php` | `?type=data&network=mtn` |
-
-### Orders
-
-| Method | Endpoint | Body / Params |
-|--------|----------|---------------|
-| POST | `/api/v1/client/order.php` | `service_id`, `phone`, `X-Idempotency-Key` header |
-| GET | `/api/v1/client/status.php` | `?ref=LDR-xxx` |
-
-### Wallet & History
-
-| Method | Endpoint | Params |
-|--------|----------|--------|
-| GET | `/api/v1/client/wallet.php` | — |
-| GET | `/api/v1/client/transactions.php` | — |
-
-### Webhooks (provider → your server)
-
-| Method | Endpoint | Params |
-|--------|----------|--------|
-| POST | `/api/v1/webhooks/provider.php` | `?provider=cheapdatahub` |
-
----
-
-## Transaction status lifecycle
+**Authenticate a user and start a session.**
 
 ```
-pending → processing → success
-                     → reversed   (failed + wallet refunded)
-                     → timeout    (max retries exceeded + wallet refunded)
+POST https://lendro.trackd.live/api/v1/auth/login
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `pending` | Queued, worker hasn't picked it up yet |
-| `processing` | Worker called provider; awaiting response |
-| `awaiting_reconciliation` | Provider returned "pending" — reconciler will check |
-| `success` | Delivered successfully |
-| `failed` | All providers rejected |
-| `reversed` | Failed after wallet debit — wallet refunded |
-| `timeout` | Max reconciliation attempts reached — wallet refunded |
+**Request Body:**
+```json
+{
+  "email":    "sagirugarba24@gmail.com",
+  "password": "YourPassword123"
+}
+```
+
+| Field      | Type   | Required |
+|------------|--------|----------|
+| `email`    | string | ✅ Yes   |
+| `password` | string | ✅ Yes   |
+
+**Success Response** — HTTP 200:
+```json
+{
+  "status":  "success",
+  "message": "Welcome back, Sagiru Garba!",
+  "user": {
+    "id":             42,
+    "name":           "Sagiru Garba",
+    "email":          "sagirugarba24@gmail.com",
+    "phone":          "08065488451",
+    "wallet_balance": 5000.00
+  }
+}
+```
+
+**Failure Response** — HTTP 401:
+```json
+{
+  "status":  "failed",
+  "message": "Incorrect email or password."
+}
+```
+
+> After a successful login, the server sets a session cookie automatically. All subsequent calls to `/client/*` will be authenticated as long as you pass `credentials: "include"`.
 
 ---
 
-## Adding a new provider
+### 3. Logout
 
-1. Create `api/v1/providers/ProviderC.php` — extend `BaseProvider`, implement `ProviderInterface`.
-2. Add `case 'newprovider':` in `ProviderFactory::make()`.
-3. Insert into `providers` table with `slug = 'newprovider'` and your API key.
-4. Run `populate-services.php` to sync their catalogue.
+**End the current session.**
 
----
+```
+POST https://lendro.trackd.live/api/v1/auth/logout
+```
 
-## Database tables
+No request body needed.
 
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts |
-| `wallets` | Each user's balance |
-| `wallet_logs` | Full debit/credit audit trail |
-| `providers` | VTU provider config (name, base_url, api_key) |
-| `services` | Normalised service catalogue |
-| `provider_services` | Maps services → provider's internal SKU + cost price |
-| `transactions` | Every purchase attempt with full status history |
-| `transaction_queue` | Async job queue consumed by the worker cron |
-| `provider_callbacks` | Raw webhook payloads (audit log) |
-| `notifications` | In-app user notifications |
-| `apicache` | Cached provider product lists |
-| `commissions` | Profit tracking per transaction |
+**Success Response** — HTTP 200:
+```json
+{
+  "status":  "success",
+  "message": "You have been logged out."
+}
+```
 
 ---
 
-## Security notes
+### 4. Get Services
 
-- All purchase endpoints require a valid PHP session (login first).
-- Idempotency keys prevent double-charging on network retries.
-- Wallet updates use `FOR UPDATE` row locks to prevent race conditions.
-- Webhook signatures are verified per-provider (see `webhooks/provider.php`).
-- Never commit real API keys — use environment variables in production.
-- All DB queries use PDO prepared statements — no raw SQL string interpolation.
+**Fetch all available services (airtime, data, bills, etc.).**
+
+> 🔐 Requires login.
+
+```
+GET https://lendro.trackd.live/api/v1/client/services
+```
+
+**Optional Query Parameters:**
+
+| Param      | Type   | Example          | Description                              |
+|------------|--------|------------------|------------------------------------------|
+| `type`     | string | `?type=data`     | Filter: `airtime`, `data`, `bill`        |
+| `network`  | string | `?network=mtn`   | Filter by network: `mtn`, `glo`, `airtel`, `9mobile` |
+
+**Examples:**
+```
+GET /api/v1/client/services               → all services
+GET /api/v1/client/services?type=data     → data plans only
+GET /api/v1/client/services?type=data&network=mtn  → MTN data plans only
+```
+
+**Success Response** — HTTP 200:
+```json
+{
+  "status": "success",
+  "data": {
+    "airtime": {
+      "mtn":    [
+        { "id": 1, "key": "mtn-airtime", "name": "MTN Airtime", "price": null, "category": "airtime", "duration": null, "unit": null }
+      ],
+      "glo":    [ ... ],
+      "airtel": [ ... ],
+      "9mobile":[ ... ]
+    },
+    "data": {
+      "mtn": [
+        { "id": 5,  "key": "mtn-1gb-30d",  "name": "1GB — 30 Days",  "price": 350.00,  "category": "data", "duration": 30, "unit": "day" },
+        { "id": 6,  "key": "mtn-2gb-30d",  "name": "2GB — 30 Days",  "price": 680.00,  "category": "data", "duration": 30, "unit": "day" }
+      ]
+    },
+    "bill": {
+      "electricity": [ ... ],
+      "cable":       [ ... ]
+    }
+  }
+}
+```
+
+Each service object:
+
+| Field      | Type            | Description                                    |
+|------------|-----------------|------------------------------------------------|
+| `id`       | integer         | Use this as `service_id` when placing an order |
+| `key`      | string          | Internal identifier                            |
+| `name`     | string          | Human-readable name to display                 |
+| `price`    | float or `null` | Fixed price in Naira; `null` = flexible amount |
+| `category` | string          | Service category                               |
+| `duration` | integer or null | Validity period number                         |
+| `unit`     | string or null  | `"day"`, `"month"`, etc.                       |
 
 ---
 
-## Providers supported
+### 5. Place an Order
 
-| Provider | Slug | Services |
-|----------|------|----------|
-| CheapDataHub | `cheapdatahub` | Airtime, Data, Electricity, Cable, Exam PINs |
-| ConnectBridge | `connectbridge` | Airtime, Data (fallback) |
+**Buy a VTU service. The wallet is charged immediately, the delivery happens in the background.**
+
+> 🔐 Requires login.
+
+```
+POST https://lendro.trackd.live/api/v1/client/order
+```
+
+**Request Body:**
+```json
+{
+  "service_id":      5,
+  "phone":           "08065488451",
+  "idempotency_key": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+| Field             | Type    | Required | Notes                                                                 |
+|-------------------|---------|----------|-----------------------------------------------------------------------|
+| `service_id`      | integer | ✅ Yes   | The `id` from GET /client/services                                    |
+| `phone`           | string  | ✅ Yes   | Recipient's phone number                                              |
+| `idempotency_key` | string  | ✅ Yes   | A unique UUID per order attempt — prevents duplicate charges on retry. Generate with `crypto.randomUUID()` |
+
+> **Why idempotency_key?** If a network timeout causes your app to retry the request, the server will recognise the same key and return the original result instead of charging the wallet twice.
+
+**Success Response** — HTTP 202:
+```json
+{
+  "status":    "processing",
+  "reference": "LDR-1718123456-A3F9",
+  "message":   "Order received. Your service is being processed."
+}
+```
+
+**Already processed (same idempotency_key sent again)** — HTTP 200:
+```json
+{
+  "status":    "already_processed",
+  "reference": "LDR-1718123456-A3F9",
+  "message":   "This order was already submitted."
+}
+```
+
+**Failure — insufficient balance** — HTTP 400:
+```json
+{
+  "status":  "failed",
+  "message": "Insufficient wallet balance."
+}
+```
+
+**Failure — service not found** — HTTP 400:
+```json
+{
+  "status":  "failed",
+  "message": "Service not found or currently unavailable."
+}
+```
+
+> After placing an order, **immediately start polling** the status endpoint every 5 seconds using the `reference` you received.
 
 ---
 
-## License
+### 6. Check Order Status
 
-MIT — free to use and modify.
+**Poll this endpoint after placing an order to track its progress.**
+
+> 🔐 Requires login.
+
+```
+GET https://lendro.trackd.live/api/v1/client/status?ref=LDR-1718123456-A3F9
+```
+
+| Query Param | Type   | Required | Description               |
+|-------------|--------|----------|---------------------------|
+| `ref`       | string | ✅ Yes   | The reference from /order |
+
+**Success — transaction delivered** — HTTP 200:
+```json
+{
+  "status":    "success",
+  "tx_status": "success",
+  "reference": "LDR-1718123456-A3F9",
+  "service":   "MTN 1GB — 30 Days",
+  "phone":     "08065488451",
+  "amount":    350.00
+}
+```
+
+**Still processing:**
+```json
+{
+  "status":    "success",
+  "tx_status": "processing",
+  "reference": "LDR-1718123456-A3F9",
+  "service":   "MTN 1GB — 30 Days",
+  "phone":     "08065488451",
+  "amount":    350.00
+}
+```
+
+**Failed — wallet refunded:**
+```json
+{
+  "status":    "success",
+  "tx_status": "reversed",
+  "reference": "LDR-1718123456-A3F9",
+  "service":   "MTN 1GB — 30 Days",
+  "phone":     "08065488451",
+  "amount":    350.00
+}
+```
+
+**Polling strategy:**
+```
+1. Place order → get reference
+2. Poll every 5 seconds
+3. Stop when tx_status is "success", "reversed", or "failed"
+4. Stop after 2 minutes (24 attempts) — show a timeout message
+```
+
+---
+
+### 7. Transaction History
+
+**Get a paginated list of the user's past transactions.**
+
+> 🔐 Requires login.
+
+```
+GET https://lendro.trackd.live/api/v1/client/transactions
+```
+
+**Optional Query Parameters:**
+
+| Param    | Type    | Default | Description                                              |
+|----------|---------|---------|----------------------------------------------------------|
+| `page`   | integer | `1`     | Page number                                              |
+| `limit`  | integer | `20`    | Items per page (max 50)                                  |
+| `status` | string  | —       | Filter: `pending`, `processing`, `success`, `failed`, `reversed` |
+
+**Examples:**
+```
+GET /api/v1/client/transactions                         → first 20 transactions
+GET /api/v1/client/transactions?page=2&limit=10         → page 2
+GET /api/v1/client/transactions?status=success          → successful only
+```
+
+**Success Response** — HTTP 200:
+```json
+{
+  "status":      "success",
+  "page":        1,
+  "limit":       20,
+  "total":       87,
+  "total_pages": 5,
+  "transactions": [
+    {
+      "reference":  "LDR-1718123456-A3F9",
+      "service":    "MTN 1GB — 30 Days",
+      "provider":   "CheapDataHub",
+      "amount":     350.00,
+      "phone":      "08065488451",
+      "status":     "success",
+      "created_at": "2025-06-15 14:32:00",
+      "updated_at": "2025-06-15 14:32:18",
+      "time_ago":   "2 days ago"
+    },
+    {
+      "reference":  "LDR-1718099000-B7C1",
+      "service":    "Airtel Airtime",
+      "provider":   "ConnectBridge",
+      "amount":     200.00,
+      "phone":      "08012345678",
+      "status":     "reversed",
+      "created_at": "2025-06-14 09:10:00",
+      "updated_at": "2025-06-14 09:10:45",
+      "time_ago":   "3 days ago"
+    }
+  ]
+}
+```
+
+---
+
+### 8. Wallet Balance
+
+**Get the logged-in user's current wallet balance and last 20 transactions.**
+
+> 🔐 Requires login.
+
+```
+GET https://lendro.trackd.live/api/v1/client/wallet
+```
+
+No parameters required.
+
+**Success Response** — HTTP 200:
+```json
+{
+  "status":  "success",
+  "balance": 4650.00,
+  "transactions": [
+    {
+      "reference": "LDR-1718123456-A3F9",
+      "amount":    350.00,
+      "type":      "debit",
+      "service":   "MTN 1GB — 30 Days",
+      "status":    "success",
+      "date":      "2025-06-15 14:32:00",
+      "time_ago":  "2 days ago"
+    }
+  ]
+}
+```
+
+**Failure — wallet missing** — HTTP 404:
+```json
+{
+  "status":  "failed",
+  "message": "Wallet not found."
+}
+```
+
+---
+
+### 9. Provider Webhook
+
+**Endpoint that VTU providers call to deliver real-time status updates.**
+
+> ⚠️ This is for providers only. Do not call this from your app.
+
+```
+POST https://lendro.trackd.live/api/v1/webhooks/provider?provider=cheapdatahub
+```
+
+| Query Param | Type   | Description                     |
+|-------------|--------|---------------------------------|
+| `provider`  | string | Provider slug (e.g. `cheapdatahub`, `connectbridge`) |
+
+The server processes the callback, updates the transaction, and — if it failed — automatically refunds the user's wallet.
+
+**Response when successful:**
+```json
+{ "status": "success" }
+```
+
+**Response when refunded:**
+```json
+{ "status": "refunded" }
+```
+
+**Response when still processing:**
+```json
+{ "status": "processing", "message": "Queued for reconciliation" }
+```
+
+---
+
+## Order Flow (Step by Step)
+
+Here is the full journey from opening the app to a completed purchase:
+
+```
+Step 1 — Register / Login
+  POST /auth/register   (first time)
+  POST /auth/login      (every session)
+  → Save the session cookie
+
+Step 2 — Load Services
+  GET /client/services
+  → Display service cards grouped by type & network
+
+Step 3 — Place Order
+  User picks a service, enters phone number
+  Generate idempotency_key = crypto.randomUUID()
+  POST /client/order  { service_id, phone, idempotency_key }
+  → Wallet debited, get back a reference
+
+Step 4 — Poll Status
+  Every 5 seconds: GET /client/status?ref=LDR-xxx
+  → Keep polling until tx_status is "success", "reversed", or "failed"
+  → Stop after 2 minutes
+
+Step 5 — Show Result
+  "success"  → Show success screen, refresh wallet balance
+  "reversed" → Show refund message, refresh wallet balance
+  "failed"   → Show error message
+```
+
+---
+
+## Transaction Statuses
+
+| Status                    | Meaning                                                  | Wallet  |
+|---------------------------|----------------------------------------------------------|---------|
+| `pending`                 | Order received, not yet picked by worker                 | Debited |
+| `processing`              | Worker sent request to provider, awaiting response       | Debited |
+| `success`                 | Provider confirmed delivery ✅                           | Debited |
+| `awaiting_reconciliation` | Provider said "pending" — reconciler will follow up      | Debited |
+| `reversed`                | Delivery failed — wallet refunded automatically ↩️      | Refunded|
+| `failed`                  | Hard failure — wallet refunded automatically ↩️         | Refunded|
+
+---
+
+## Error Responses
+
+All errors follow this shape:
+
+```json
+{
+  "status":  "failed",
+  "message": "Human-readable explanation of what went wrong."
+}
+```
+
+Or for validation with multiple issues:
+
+```json
+{
+  "status": "failed",
+  "errors": [
+    "Name is required.",
+    "Password must be at least 8 characters."
+  ]
+}
+```
+
+**Common HTTP status codes:**
+
+| Code | Meaning                                    |
+|------|--------------------------------------------|
+| 200  | OK                                         |
+| 201  | Created (registration)                     |
+| 202  | Accepted (order placed, processing async)  |
+| 400  | Bad request (failed order, invalid data)   |
+| 401  | Unauthorized (not logged in)               |
+| 404  | Not found                                  |
+| 405  | Wrong HTTP method used                     |
+| 409  | Conflict (e.g. email already registered)   |
+| 422  | Validation error (missing required fields) |
+| 500  | Server error                               |
+
+---
+
+## Database Tables
+
+| Table                | Purpose                                               |
+|----------------------|-------------------------------------------------------|
+| `users`              | User accounts (name, email, phone, hashed password)   |
+| `wallets`            | Each user's Naira balance                             |
+| `wallet_logs`        | Full debit/credit audit trail                         |
+| `providers`          | VTU provider config (name, base URL, API key)         |
+| `services`           | Normalised service catalogue shown to users           |
+| `provider_services`  | Maps our services → provider's internal product ID    |
+| `transactions`       | Every purchase attempt with full status history        |
+| `transaction_queue`  | Async job queue consumed by the background worker     |
+| `provider_callbacks` | Raw webhook payloads saved for auditing               |
+| `notifications`      | In-app user notifications                             |
+| `apicache`           | Cached provider product lists (refreshed every 4 days)|
+| `commissions`        | Profit tracking per transaction                       |
+
+The database export (`dbmlendro.sql`) in this repo contains the full schema with all tables, indexes, and seed data. Import it to get started.
+
+---
+
+## Project Structure
+
+```
+/
+├── index.php                          ← Root entry — loads the frontend
+├── public/
+│   └── index.php                      ← Full frontend SPA (HTML + JS)
+├── api/
+│   └── v1/
+│       ├── configs.php                ← All config: DB, URLs, API keys, markup
+│       ├── db.php                     ← Database connection (PDO)
+│       ├── TransactionService.php     ← Core: wallet debit + queue push
+│       ├── ServiceManager.php         ← Service catalogue queries
+│       ├── IdempotencyService.php     ← Prevents duplicate purchases
+│       ├── ProviderFactory.php        ← Builds provider instances
+│       ├── ProviderInterface.php      ← Contract every provider must follow
+│       ├── Normalizer.php             ← Maps webhook payloads to internal format
+│       ├── ProviderResponseNormalizer.php ← Maps provider status → success/pending/failed
+│       ├── auth/
+│       │   ├── login.php              ← POST /auth/login
+│       │   ├── logout.php             ← POST /auth/logout
+│       │   └── register.php           ← POST /auth/register
+│       ├── client/
+│       │   ├── services.php           ← GET /client/services
+│       │   ├── order.php              ← POST /client/order
+│       │   ├── status.php             ← GET /client/status
+│       │   ├── transactions.php       ← GET /client/transactions
+│       │   └── wallet.php             ← GET /client/wallet
+│       ├── providers/
+│       │   ├── BaseProvider.php       ← Shared HTTP helper for all providers
+│       │   ├── ProviderA.php          ← CheapDataHub integration
+│       │   ├── ProviderB.php          ← ConnectBridge integration
+│       │   └── ProviderProductsA.php  ← Scrapes CheapDataHub product list
+│       ├── cronjob/
+│       │   ├── populate-services.php  ← Syncs provider catalogues to DB
+│       │   └── reconcile_transactions.php ← Follows up on pending transactions
+│       ├── webhooks/
+│       │   └── provider.php           ← POST /webhooks/provider (providers call this)
+│       └── workers/
+│           ├── process_transactions.php ← Background worker — sends to provider
+│           └── lendro-worker.conf       ← Worker process config
+└── dbmlendro.sql                      ← Full database schema + seed data
+```
+
+---
+
+## Supported Providers
+
+| Provider      | Slug            | Services Covered                                    |
+|---------------|-----------------|-----------------------------------------------------|
+| CheapDataHub  | `cheapdatahub`  | Airtime, Data, Electricity, Cable TV, Exam PINs     |
+| ConnectBridge | `connectbridge` | Airtime, Data (used as fallback)                    |
+
+To add a new provider:
+1. Create `api/v1/providers/ProviderC.php` — extend `BaseProvider`, implement `ProviderInterface`
+2. Add `case 'newprovider':` in `ProviderFactory::make()`
+3. Insert a row in the `providers` table with the correct slug and API key
+4. Run `populate-services.php` to sync their catalogue
+
+---
+
+## Contact
+
+For integration support or API access:
+
+**Email:** sagirugarba24@gmail.com  
+**Phone / WhatsApp:** 08065488451
+
