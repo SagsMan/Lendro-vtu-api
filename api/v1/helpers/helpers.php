@@ -370,3 +370,24 @@ function getProviderId(string $slug, PDO $db): int
         return json_encode(['status'=>'success','data'=>['dataitems'=>[$billerCode=>$items]]], JSON_UNESCAPED_UNICODE);
     }
   
+function mockupPrice($basePrice){
+
+if($basePrice >= 1000){
+$roundedStep = 50;
+}else{
+$roundedStep = 10;
+}
+
+if($basePrice <= 1000){
+	$markupPrice = MARKUP_1K;
+}else if($basePrice > 1000 && $basePrice <= 2500){
+	$markupPrice = MARKUP_25K;
+}else{
+	$markupPrice = MARKUP_MAX;
+}
+
+markedUp = $basePrice + $markupPrice;
+roundUpPrice = ceil(markedUp / $roundedStep) * $roundedStep;
+
+return roundUpPrice;
+}

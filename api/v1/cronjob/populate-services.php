@@ -77,8 +77,11 @@ foreach (PROVIDER_SLUGS as $providerSlug) {
                 $costPrice    = null;
             } else {
                 $costPrice    = (float) ($srv['price'] ?? 0);
+                
                 // Apply our markup on top of the provider's cost price
-                $sellingPrice = $costPrice > 0 ? round($costPrice * (1 + MARKUP), 2) : null;
+                $sellingPrice = mockupPrice($costPrice);
+
+               //  $sellingPrice = $costPrice > 0 ? round($costPrice * (1 + MARKUP), 2) : null;
             }
 
             // Does this service already exist in our catalogue?

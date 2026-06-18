@@ -16,7 +16,10 @@
   }
 
   // ── Service markup ────────────────────────────────────────────────────────────
-  define('MARKUP', 0.15);
+define('MARKUP_1K',20); //N20
+define('MARKUP_25K',50); //N100
+define('MARKUP_MAX',100); //5%,10%
+define('MARKUP_STEP',10); //airtime: N10, data: N50, cable/others: N100
 
   // ── App base URL ──────────────────────────────────────────────────────────────
   define('BASE_URL', 'https://lendro.trackd.live');
