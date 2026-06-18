@@ -1,9 +1,14 @@
 <?php
-//get particular service(s) by type or bill->category
-require __DIR__."/../db.php";
-Securepg();
+  /**
+   * POST /api/v1/client/show
+   * Get services filtered by type / network / category.
+   */
+  require_once __DIR__ . '/../db.php';
 
-$type = $_POST["type"] ?? null;
-$network = $_POST["network"] ?? null;
-$category = $_POST["category"] ?? null;
-echo getServicesBy($type,$network,$category);
+  $userid  = requireAuth();
+  $type     = $_POST['type']     ?? $_GET['type']     ?? null;
+  $network  = $_POST['network']  ?? $_GET['network']  ?? null;
+  $category = $_POST['category'] ?? $_GET['category'] ?? null;
+
+  echo getServicesBy($type, $network, $category);
+  
