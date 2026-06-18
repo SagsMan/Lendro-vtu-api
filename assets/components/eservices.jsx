@@ -167,7 +167,7 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
           let url = "", ver = getStorage("lendro.services.ver"), body = {ver};
 
           if(popupOpen?.data?.dwat === "viewdataitems"){
-              url = `/api/v1/client/show.php`;
+              url = `/client/show.php`;
               body = { ...body, type:"data", network:billercode };
           } else if(popupOpen?.data?.dwat === "viewitems"){
               url = `/api/getitems.php`;
