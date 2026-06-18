@@ -129,7 +129,7 @@
 
           if (page === "home") url = `/accounts/home.php`;
           //if (page === "loan") url = `/accounts/loan.php`;
-          if (page === "services") url = `/services/index.php`;
+          if (page === "services") url = `/client/services.php`;
           //if (page === "contest") url = `/accounts/contest.php`;
           if(page === "wcfund") return;
           
@@ -159,8 +159,8 @@
                 }
                 setTransactions(res.data?.transactions || []);
                 setLeaderboardData(res.data?.leaderboard || []);
-                if(res.data?.services){ 
-                  window.saveStorage("lendro.services",res.data?.categories,{ merge : true }); 
+                if(res.data?.services){
+                  saveStorage("lendro.services",res.data?.services,{merge:true});
                 }
               }
 
