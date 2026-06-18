@@ -42,6 +42,7 @@
     });
 
     const [fpwd, setFpwd] = useState("");
+      const [newPin, setNewPin] = useState({ pin: "", confirmPin: "" });
 
     const resetMsg = () => { setError(""); setSuccess(""); };
 
@@ -354,7 +355,33 @@
       ),
 
       //Forgot Password Section
-        activeSection === "fpwd" && e("div", { key: "fpwd" }, [
+
+        // Set New PIN (after forgot-pwd phone verification)
+        activeSection === "fpwd2" && e("div", { key: "fpwd2" },
+          e("div", { className: "text-sm text-center mb-4" }, "Set your new 6-digit PIN."),
+
+          e("input", { placeholder: "New PIN", name: "pin", maxLength: 6, type: "password",
+            className: "w-full mb-2 px-3 py-2 rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500",
+            value: newPin.pin,
+            onChange: (ev) => { const v = ev.target.value.replace(/\D/g,"").slice(0,6); setNewPin(p => ({ ...p, pin: v })); }
+          }),
+
+          e("input", { placeholder: "Confirm New PIN", name: "confirmPin", maxLength: 6, type: "password",
+            className: "w-full mb-3 px-3 py-2 rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500",
+            value: newPin.confirmPin,
+            onChange: (ev) => { const v = ev.target.value.replace(/\D/g,"").slice(0,6); setNewPin(p => ({ ...p, confirmPin: v })); }
+          }),
+
+          e("div", { className: "flex gap-4 mb-4" },
+            e("button", { onClick: () => setActiveSection("fpwd"), className: "w-1/2 bg-gray-400 text-black py-3 rounded" }, "Back"),
+            e("button", { onClick: handleResetPin, disabled: busy, className: "w-1/2 bg-yellow-400 text-black py-3 rounded" }, busy ? "Saving…" : "Set PIN"),
+          ),
+          e("p", { className: "text-sm text-center" }, "Remember your PIN? ",
+            e("a", { href: "#", className: "text-yellow-400", onClick: () => setActiveSection("login") }, "Log in")
+          ),
+        ),
+
+          activeSection === "fpwd" && e("div", { key: "fpwd" }, [
           //Dial *565*0# from your registered phone number to get your BVN.
           e("div", { className: "text-sm text-center mb-4" }, "Enter your 10-digit phone number to reset your PIN."),
           
