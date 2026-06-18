@@ -228,38 +228,73 @@ function timeAgo(string $datetime): string
  * Shared by /client/services.php and any other endpoint that lists services.
  */
 function getAllServices(PDO $db): string
-{
-    $stmt = $db->prepare(
-        'SELECT * FROM services WHERE status = 1 ORDER BY type ASC, network ASC, price ASC'
-    );
-    $stmt->execute();
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  {
+      $stmt = $db->prepare('SELECT * FROM services WHERE status = 1 ORDER BY type ASC, network ASC, price ASC');
+      $stmt->execute();
+      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $grouped = ['airtime' => [], 'data' => [], 'bill' => []];
+      $airtimeNetworks = [];
+      $dataNetworks    = [];
+      $billCategories  = [];
+      $seenAirtime = $seenData = $seenBill = [];
 
-    foreach ($rows as $row) {
-        $type    = $row['type']                ?: 'other';
-        $network = strtolower($row['network']) ?: 'general';
+      $airtimeNames = [
+          'mtn'=>'MTN Airtime VTU','airtel'=>'Airtel Airtime VTU',
+          'glo'=>'GLO Airtime VTU','9mobile'=>'9mobile Airtime VTU','etisalat'=>'9mobile Airtime VTU',
+      ];
+      $catMap = [
+          'electricity'=>['name'=>'Electricity Bill',            'identifier'=>'electricity-bill'],
+          'cabletv'    =>['name'=>'TV Subscription',             'identifier'=>'tv-subscription'],
+          'cable'      =>['name'=>'Cable Bill Payment',          'identifier'=>'tv-subscription'],
+          'education'  =>['name'=>'Education',                   'identifier'=>'education'],
+          'insurance'  =>['name'=>'Insurance',                   'identifier'=>'insurance'],
+          'transport'  =>['name'=>'Transport and Logistics',     'identifier'=>'TRANSLOG'],
+          'betting'    =>['name'=>'Betting & Entertainment',     'identifier'=>'DEALPAY'],
+          'religion'   =>['name'=>'Religious Institutions',      'identifier'=>'RELINST'],
+          'school'     =>['name'=>'Schools & Professional Bodies','identifier'=>'SCHPB'],
+      ];
 
-        if (!isset($grouped[$type][$network])) {
-            $grouped[$type][$network] = [];
-        }
+      foreach ($rows as $row) {
+          $type     = strtolower($row['type']     ?? '');
+          $network  = strtolower($row['network']  ?? '');
+          $category = strtolower($row['category'] ?? '');
 
-        $grouped[$type][$network][] = [
-            'id'       => (int) $row['id'],
-            'key'      => $row['service_key'],
-            'name'     => $row['name'],
-            'price'    => $row['price'] !== null ? (float) $row['price'] : null,
-            'category' => $row['category'],
-            'duration' => $row['duration'],
-            'unit'     => $row['validity_unit'],
-        ];
-    }
+          if ($type === 'airtime' && $network && !in_array($network, $seenAirtime)) {
+              $seenAirtime[]     = $network;
+              $airtimeNetworks[] = [
+                  'name'           => $airtimeNames[$network] ?? (strtoupper($network).' Airtime VTU'),
+                  'serviceID'      => $network,
+                  'maximum_amount' => null,
+              ];
+          }
+          if ($type === 'data' && $network && !in_array($network, $seenData)) {
+              $seenData[]     = $network;
+              $dataNetworks[] = [
+                  'name'           => $network.'-data',
+                  'serviceID'      => $network.'-data',
+                  'maximum_amount' => $row['price'] !== null ? (float)$row['price'] : null,
+              ];
+          }
+          if ($type === 'bill' && $category && !in_array($category, $seenBill)) {
+              $seenBill[]      = $category;
+              $billCategories[] = [
+                  'name'       => $catMap[$category]['name']       ?? ucfirst($category),
+                  'identifier' => $catMap[$category]['identifier'] ?? $category,
+              ];
+          }
+      }
 
-    return json_encode(['status' => 'success', 'data' => $grouped], JSON_UNESCAPED_UNICODE);
-}
+      return json_encode([
+          'status' => 'success',
+          'data'   => [
+              'categories' => $billCategories,
+              'airtime'    => $airtimeNetworks,
+              'data'       => $dataNetworks,
+          ],
+      ], JSON_UNESCAPED_UNICODE);
+  }
 
-// ── Provider helper ───────────────────────────────────────────────────────────
+  // ── Provider helper ───────────────────────────────────────────────────────────
 
 /**
  * Resolve a provider's DB id from its slug.
@@ -303,31 +338,34 @@ function getProviderId(string $slug, PDO $db): int
    * Used by legacy show.php.
    */
   function getServicesBy(?string $type, ?string $network, ?string $category): string
-  {
-      global $db;
-      $sql    = 'SELECT * FROM services WHERE status = 1';
-      $params = [];
-      if ($type)     { $sql .= ' AND type = ?';           $params[] = $type; }
-      if ($network)  { $sql .= ' AND LOWER(network) = ?'; $params[] = strtolower($network); }
-      if ($category) { $sql .= ' AND category = ?';       $params[] = $category; }
-      $sql .= ' ORDER BY type ASC, network ASC, price ASC';
-      $stmt = $db->prepare($sql);
-      $stmt->execute($params);
-      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-      $grouped = [];
-      foreach ($rows as $row) {
-          $t = $row['type']                ?: 'other';
-          $n = strtolower($row['network']) ?: 'general';
-          $grouped[$t][$n][] = [
-              'id'       => (int) $row['id'],
-              'key'      => $row['service_key'],
-              'name'     => $row['name'],
-              'price'    => $row['price'] !== null ? (float) $row['price'] : null,
-              'category' => $row['category'],
-              'duration' => $row['duration'],
-              'unit'     => $row['validity_unit'],
-          ];
-      }
-      return json_encode(['status' => 'success', 'data' => $grouped], JSON_UNESCAPED_UNICODE);
-  }
+    {
+        global $db;
+        $dbNetwork = $network;
+        if ($network && str_ends_with($network, '-data')) $dbNetwork = substr($network, 0, -5);
+        $sql = 'SELECT * FROM services WHERE status = 1';
+        $params = [];
+        if ($type)      { $sql .= ' AND type = ?';           $params[] = $type; }
+        if ($dbNetwork) { $sql .= ' AND LOWER(network) = ?'; $params[] = strtolower($dbNetwork); }
+        if ($category)  { $sql .= ' AND category = ?';       $params[] = $category; }
+        $sql .= ' ORDER BY price ASC';
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $items = [];
+        foreach ($rows as $row) {
+            $days = (int)($row['duration'] ?? 0);
+            $unit = $row['validity_unit'] ?? 'day';
+            if ($unit === 'week')  $days *= 7;
+            if ($unit === 'month') $days *= 30;
+            $items[] = [
+                'biller_name'     => $row['name'],
+                'amount'          => $row['price'] !== null ? (float)$row['price'] : null,
+                'validity_period' => $days,
+                'group_name'      => strtoupper($row['network'] ?? '').' Data',
+                'service_key'     => $row['service_key'] ?? '',
+            ];
+        }
+        $billerCode = $network ?? $type;
+        return json_encode(['status'=>'success','data'=>['dataitems'=>[$billerCode=>$items]]], JSON_UNESCAPED_UNICODE);
+    }
   
