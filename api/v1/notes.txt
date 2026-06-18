@@ -1,0 +1,165 @@
+/////////// REAL SYSTEM STRUCTURE ARCHITECTURE ///////////
+Your System Service (e.g Airtime MTN 1000)
+↓
+Provider Mapping (CheapDataHub / ConnectBridge / etc)
+↓
+Provider Code (their internal SKU)
+↓
+API call
+//////////////////
+service_keys:
+    mtn_airtime
+    airtel_airtime
+    glo_airtime
+    9mobile_airtime
+
+    mtn_data_1gb_1day
+    glo_data_1.5gb_7days
+    airtel_data_5gb_30days
+
+    ekedc_
+
+
+/////////////////////////
+purchase endpoints for CheapDataHub:
+    airtime:
+       url: /api/v1/resellers/airtime/purchase/  (POST)
+       request => (provider_id(int),phone_number (string), amount (number)), 
+       response = {
+        "status": "true",
+        "reference": "CDH123456",
+        "message": "Airtime delivered successfully"
+        }
+    data:
+       url: /api/v1/resellers/data/purchase/  (POST)
+       request => (bundle_id (int),phone_number (string)), 
+       response = {
+        "status": "true",
+        "reference": "CDH123456",
+        "message": "Data purchase successful"
+        }
+    electricity:
+       url: /api/v1/resellers/electricity/purchase/  (POST)
+       request => (disco_id (int), meter_number (string), amount (number), meter_type (string - prepaid or postpaid), phone_number (string) ), 
+       response = {
+        "status": "true",
+        "message": "Electricity purchase successful",
+        "data": {
+                "token": "12345678901234567890",
+                "units": "45.67"
+            }
+        }
+    cable:
+       url: /api/v1/resellers/cable/purchase/  (POST)
+       request => (plan_id (int), cardnumber (string), phone (string)), 
+       response = {
+        "status": "true",
+        "reference": "CDH123456",
+        "message": "Cable subscription successful"
+        }
+    exam-pin:
+       url: /api/v1/resellers/exam-pin/products/  (GET)
+       url: /api/v1/resellers/exam-pin/purchase/  (POST)
+       request => (product_id (int), quantity (int)), 
+       response = {
+                    "status": "true",
+                    "message": "Exam pin purchase successful",
+                    "data": {
+                        "transaction": {
+                        "trans_type": "exam_pin",
+                        "amount": 3400
+                        },
+                        "delivery": {
+                        "exam_name": "WAEC",
+                        "quantity": 1,
+                        "pins": [
+                            "0293837272133<=>WRN102838374"
+                        ]
+                        }
+                    }
+                    }
+    GET /api/v1/resellers/transactions/ returns reseller API transactions for the authenticated user
+    GET /api/v1/resellers/transactions/<id>/ returns one reseller transaction owned by the authenticated user
+
+    
+
+/////////////////////
+//////// about idempotency //////////
+Frontend MUST generate unique key: const idemKey = crypto.randomUUID();
+Send with request: {"service_id": 1, "phone": "08011111111", "idempotency_key": "7c8f-xxxx"}
+
+request hashing, prevents (same key, different payload)
+PHP:
+$requestHash = hash(
+    'sha256',
+    json_encode([
+        $userid,
+        $service_id,
+        $phone
+    ])
+);
+
+///////////////////////////////////////////////////////////////////
+///////////////////// DISTRIBUTED TRANSACTION QUEUE //////////////
+Because currently:- (HTTP request waits for provider)
+    user request → provider request → wait provider
+→ response
+Better architecture:- API receives request
+    → debit wallet
+    → queue transaction
+    → worker processes provider
+    → webhook/reconciliation finalizes
+
+***** TRANSACTION QUEUE + WORKERS (Architecture becomes:)
+Client Request
+→ Validate
+→ Debit Wallet
+→ Create Pending TX
+→ Push Queue
+→ Return immediately
+
+BACKGROUND WORKER
+→ Processes queue
+→ Calls provider
+→ Updates TX
+→ Reconciliation handles unresolved
+
+******************
+SO YOUR QUEUE STATUS SHOULD REALLY BE:
+    pending
+    processing
+    awaiting_callback
+    awaiting_reconciliation
+    completed
+    failed
+YOUR TRANSACTION STATUS SHOULD BE:
+    pending
+    processing
+    success
+    failed
+    reversed
+    timeout
+*************************
+
+FINAL CORRECT FLOW
+    USER REQUEST
+        → debit wallet
+        → tx pending
+        → queue pending
+
+    WORKER
+        → provider request
+
+IF SUCCESS
+    tx success
+    queue completed
+
+IF PENDING
+    tx processing
+    queue awaiting_reconciliation
+
+WEBHOOK/RECON
+    → tx success/failed
+    → queue completed/failed
+
+This is proper async fintech architecture.

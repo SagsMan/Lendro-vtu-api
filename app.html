@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lendro VTU — Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:   #16a34a;
+      --green-d: #15803d;
+      --blue:    #2563eb;
+      --red:     #dc2626;
+      --amber:   #d97706;
+      --gray-50: #f9fafb;
+      --gray-100:#f3f4f6;
+      --gray-200:#e5e7eb;
+      --gray-400:#9ca3af;
+      --gray-600:#4b5563;
+      --gray-800:#1f2937;
+      --white:   #ffffff;
+      --shadow:  0 2px 8px rgba(0,0,0,0.10);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      min-height: 100vh;
+    }
+
+    /* ── Top nav ───────────────────────────────────────────────────────── */
+    .nav {
+      background: var(--green);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+    .nav-brand { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+    .nav-brand span { color: #bbf7d0; }
+
+    .nav-right { display: flex; gap: .75rem; align-items: center; }
+    .wallet-badge {
+      background: rgba(255,255,255,.2);
+      border-radius: 20px;
+      padding: .25rem .75rem;
+      font-size: .85rem;
+      font-weight: 600;
+    }
+    .btn-logout {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.5);
+      color: var(--white);
+      border-radius: 6px;
+      padding: .3rem .75rem;
+      cursor: pointer;
+      font-size: .85rem;
+    }
+
+    /* ── Main layout ───────────────────────────────────────────────────── */
+    .container { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+    /* ── Tabs ──────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: .35rem;
+      background: var(--gray-100);
+      border-radius: 10px;
+      padding: .35rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: .55rem .5rem;
+      border: none;
+      border-radius: 7px;
+      background: transparent;
+      font-weight: 600;
+      font-size: .88rem;
+      cursor: pointer;
+      color: var(--gray-600);
+      transition: background .2s, color .2s;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .tab-btn.active { background: var(--white); color: var(--green); box-shadow: var(--shadow); }
+
+    /* ── Network pills ─────────────────────────────────────────────────── */
+    .network-pills { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .pill {
+      padding: .35rem .85rem;
+      border-radius: 20px;
+      border: 1.5px solid var(--gray-200);
+      background: var(--white);
+      font-size: .83rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all .2s;
+    }
+    .pill.active { border-color: var(--green); background: #dcfce7; color: var(--green-d); }
+
+    /* ── Duration filter pills for Data ──────────────────────────────── */
+    .duration-filter {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      padding: .5rem 0;
+      border-top: 1px solid var(--gray-100);
+    }
+    .dur-pill {
+      padding: .3rem .9rem;
+      border-radius: 20px;
+      border: 1.5px solid var(--gray-200);
+      background: var(--white);
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      color: var(--gray-600);
+    }
+    .dur-pill.active { border-color: var(--blue); background: #dbeafe; color: var(--blue); }
+    .dur-pill:hover:not(.active) { border-color: var(--gray-400); }
+
+    /* ── Service cards grid ────────────────────────────────────────────── */
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: .85rem;
+    }
+    .service-card {
+      background: var(--white);
+      border: 1.5px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: border-color .2s, box-shadow .2s, transform .15s;
+    }
+    .service-card:hover { border-color: var(--green); box-shadow: 0 0 0 3px #dcfce7; transform: translateY(-2px); }
+    .service-card.selected { border-color: var(--green); background: #f0fdf4; box-shadow: 0 0 0 3px #bbf7d0; }
+    .service-card-name { font-weight: 700; font-size: .92rem; margin-bottom: .3rem; }
+    .service-card-meta { font-size: .78rem; color: var(--gray-400); }
+    .service-card-price { font-size: 1.1rem; font-weight: 800; color: var(--green); margin-top: .5rem; }
+    .service-card-price span { font-size: .75rem; font-weight: 500; color: var(--gray-400); }
+
+    /* ── Purchase panel ────────────────────────────────────────────────── */
+    .purchase-panel {
+      background: var(--white);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .purchase-panel h3 { margin-bottom: 1rem; font-size: 1.1rem; }
+    .selected-service-info {
+      background: #f0fdf4;
+      border: 1.5px solid #bbf7d0;
+      border-radius: 8px;
+      padding: .85rem 1rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* ── Status banner ─────────────────────────────────────────────────── */
+    .status-banner {
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+      font-size: .9rem;
+      display: none;
+    }
+    .status-banner.show { display: block; }
+    .status-banner.success { background: #dcfce7; color: #166534; border-left: 4px solid var(--green); }
+    .status-banner.failed  { background: #fee2e2; color: #991b1b; border-left: 4px solid var(--red); }
+    .status-banner.pending { background: #fef3c7; color: #92400e; border-left: 4px solid var(--amber); }
+    .status-banner.info    { background: #dbeafe; color: #1e40af; border-left: 4px solid var(--blue); }
+    .status-banner strong  { display: block; font-size: 1rem; margin-bottom: .25rem; }
+
+    /* ── Transaction list ──────────────────────────────────────────────── */
+    .tx-list { display: flex; flex-direction: column; gap: .6rem; }
+    .tx-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: .85rem 1rem;
+    }
+    .tx-left strong { font-size: .92rem; }
+    .tx-left small { display: block; color: var(--gray-400); font-size: .78rem; }
+    .tx-right { text-align: right; }
+    .tx-amount { font-weight: 700; font-size: .95rem; }
+    .tx-status {
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .2rem .6rem;
+      border-radius: 20px;
+      display: inline-block;
+      margin-top: .2rem;
+    }
+    .tx-status.success  { background: #dcfce7; color: #166534; }
+    .tx-status.failed   { background: #fee2e2; color: #991b1b; }
+    .tx-status.reversed { background: #fee2e2; color: #991b1b; }
+    .tx-status.pending  { background: #fef3c7; color: #92400e; }
+    .tx-status.processing { background: #dbeafe; color: #1e40af; }
+
+    /* ── Empty / loading states ────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 2.5rem; color: var(--gray-400); }
+    .spinner {
+      width: 24px; height: 24px;
+      border: 3px solid var(--gray-200);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      text-align: center; padding: 2rem;
+      display: flex; flex-direction: column; align-items: center; gap: .75rem;
+      color: var(--gray-400);
+    }
+
+    /* ── Form elements ─────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .35rem; color: var(--gray-600); }
+    input, select {
+      width: 100%;
+      padding: .6rem .85rem;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 8px;
+      font-size: .95rem;
+      outline: none;
+      transition: border .2s;
+    }
+    input:focus, select:focus { border-color: var(--green); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+      padding: .65rem 1.25rem;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary   { background: var(--green); color: var(--white); width: 100%; }
+    .btn-primary:hover:not(:disabled) { background: var(--green-d); }
+
+    /* ── Partner Services (Home) ───────────────────────────────────────── */
+    .home-section { }
+
+    .partner-services-card {
+      background: var(--white);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.25rem 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .partner-services-card h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: .15rem;
+    }
+    .partner-services-card p {
+      font-size: .8rem;
+      color: var(--gray-400);
+      margin-bottom: 1rem;
+    }
+
+    .ps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: .75rem;
+    }
+
+    .ps-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .35rem;
+      cursor: pointer;
+    }
+    .ps-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .ps-item:hover .ps-icon { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+
+    .ps-icon-airtel  { background: #e02020; }
+    .ps-icon-mtn     { background: #f5a623; }
+    .ps-icon-glo     { background: #009900; }
+    .ps-icon-9mobile { background: #6abf2e; }
+    .ps-icon-data    { background: #4f46e5; }
+    .ps-icon-cable   { background: #4f46e5; }
+    .ps-icon-elec    { background: #4f46e5; }
+    .ps-icon-more    { background: var(--gray-200); }
+
+    .ps-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--gray-800);
+    }
+    .ps-sublabel {
+      font-size: .68rem;
+      color: var(--gray-400);
+      text-align: center;
+      margin-top: -.2rem;
+    }
+
+    .ps-network-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: white;
+      font-size: .7rem;
+      letter-spacing: -.5px;
+    }
+
+    .ps-icon-svg {
+      color: white;
+      opacity: .95;
+    }
+
+    /* Recent transactions on home */
+    .home-recent-card {
+      background: var(--white);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 1.25rem;
+    }
+    .home-recent-card h3 {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: .85rem;
+    }
+
+    /* ── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .services-grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-brand { font-size: 1.1rem; }
+      .ps-grid { gap: .5rem; }
+      .ps-icon { width: 52px; height: 52px; border-radius: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-brand">Lendro<span>Pay</span></div>
+  <div class="nav-right">
+    <span class="wallet-badge">₦<span id="walletBalance">0.00</span></span>
+    <button class="btn-logout" onclick="logout()">Log out</button>
+  </div>
+</nav>
+
+<!-- ── Main App ────────────────────────────────────────────────────────── -->
+<div class="container">
+
+  <!-- Service type tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-home" onclick="switchTab('home', this)">🏠 Home</button>
+    <button class="tab-btn" id="tab-airtime" onclick="switchTab('airtime', this)">📱 Airtime</button>
+    <button class="tab-btn" id="tab-data" onclick="switchTab('data', this)">📡 Data</button>
+    <button class="tab-btn" id="tab-bill_electricity" onclick="switchTab('bill_electricity', this)">⚡ Electricity</button>
+    <button class="tab-btn" id="tab-bill_cable" onclick="switchTab('bill_cable', this)">📺 Cable TV</button>
+    <button class="tab-btn" id="tab-bill_education" onclick="switchTab('bill_education', this)">🎓 Exam PIN</button>
+    <button class="tab-btn" id="tab-history" onclick="switchTab('history', this)">🧾 History</button>
+  </div>
+
+  <!-- ── HOME SECTION ───────────────────────────────────────────────── -->
+  <div id="homeArea">
+    <div class="partner-services-card">
+      <h2>Partner Services</h2>
+      <p>Use partner services to earn usage points.</p>
+
+      <div class="ps-grid">
+
+        <!-- Airtel -->
+        <div class="ps-item" onclick="goToService('airtime','airtel')">
+          <div class="ps-icon ps-icon-airtel">
+            <div class="ps-network-logo" style="background:rgba(255,255,255,.25);font-size:.65rem;letter-spacing:-.5px;">airtel</div>
+          </div>
+          <div class="ps-label">Airtel</div>
+          <div class="ps-sublabel">Airtime</div>
+        </div>
+
+        <!-- MTN -->
+        <div class="ps-item" onclick="goToService('airtime','mtn')">
+          <div class="ps-icon ps-icon-mtn">
+            <div class="ps-network-logo" style="background:rgba(255,255,255,.25);font-size:.6rem;">MTN</div>
+          </div>
+          <div class="ps-label">MTN</div>
+          <div class="ps-sublabel">Airtime</div>
+        </div>
+
+        <!-- GLO -->
+        <div class="ps-item" onclick="goToService('airtime','glo')">
+          <div class="ps-icon ps-icon-glo">
+            <div class="ps-network-logo" style="background:rgba(255,255,255,.25);font-size:.6rem;">glo</div>
+          </div>
+          <div class="ps-label">GLO</div>
+          <div class="ps-sublabel">Airtime</div>
+        </div>
+
+        <!-- 9mobile -->
+        <div class="ps-item" onclick="goToService('airtime','9mobile')">
+          <div class="ps-icon ps-icon-9mobile">
+            <div class="ps-network-logo" style="background:rgba(255,255,255,.25);font-size:.55rem;">9mob</div>
+          </div>
+          <div class="ps-label">9mobile</div>
+          <div class="ps-sublabel">Airtime</div>
+        </div>
+
+        <!-- Data -->
+        <div class="ps-item" onclick="goToService('data',null)">
+          <div class="ps-icon ps-icon-data">
+            <svg class="ps-icon-svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+            </svg>
+          </div>
+          <div class="ps-label">Data</div>
+          <div class="ps-sublabel">&nbsp;</div>
+        </div>
+
+        <!-- Cable TV -->
+        <div class="ps-item" onclick="goToService('bill_cable',null)">
+          <div class="ps-icon ps-icon-cable">
+            <svg class="ps-icon-svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+              <polyline points="17 2 12 7 7 2"/>
+            </svg>
+          </div>
+          <div class="ps-label">Cable TV</div>
+          <div class="ps-sublabel">&nbsp;</div>
+        </div>
+
+        <!-- Electricity -->
+        <div class="ps-item" onclick="goToService('bill_electricity',null)">
+          <div class="ps-icon ps-icon-elec">
+            <svg class="ps-icon-svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </div>
+          <div class="ps-label">Electricity</div>
+          <div class="ps-sublabel">&nbsp;</div>
+        </div>
+
+        <!-- More -->
+        <div class="ps-item" onclick="goToService('more',null)">
+          <div class="ps-icon ps-icon-more">
+            <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5">
+              <circle cx="5" cy="12" r="1.5" fill="#9ca3af"/>
+              <circle cx="12" cy="12" r="1.5" fill="#9ca3af"/>
+              <circle cx="19" cy="12" r="1.5" fill="#9ca3af"/>
+            </svg>
+          </div>
+          <div class="ps-label">More</div>
+          <div class="ps-sublabel">&nbsp;</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Recent transactions on home -->
+    <div class="home-recent-card">
+      <h3>Recent Transactions</h3>
+      <div id="homeRecentTx">
+        <div class="loading-overlay"><div class="spinner"></div><span>Loading…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SERVICES SECTION ───────────────────────────────────────────── -->
+  <div id="servicesArea" style="display:none">
+    <!-- Network pills -->
+    <div class="network-pills" id="networkPills"></div>
+
+    <!-- Duration filter (Data only) -->
+    <div class="duration-filter" id="durationFilter" style="display:none">
+      <span class="dur-pill active" id="dur-all" onclick="filterByDuration('all',this)">All</span>
+      <span class="dur-pill" id="dur-hotdeal" onclick="filterByDuration('hotdeal',this)">🔥 Hot Deal</span>
+      <span class="dur-pill" id="dur-daily" onclick="filterByDuration('daily',this)">Daily</span>
+      <span class="dur-pill" id="dur-weekly" onclick="filterByDuration('weekly',this)">Weekly</span>
+      <span class="dur-pill" id="dur-monthly" onclick="filterByDuration('monthly',this)">Monthly</span>
+    </div>
+
+    <!-- Cards grid -->
+    <div id="servicesGrid">
+      <div class="loading-overlay"><div class="spinner"></div><span>Loading services…</span></div>
+    </div>
+
+    <!-- Purchase panel -->
+    <div class="purchase-panel" id="purchasePanel" style="display:none">
+      <h3>Complete your purchase</h3>
+      <div class="selected-service-info">
+        <div>
+          <strong id="selectedName">—</strong>
+          <small id="selectedMeta">—</small>
+        </div>
+        <strong id="selectedPrice" style="font-size:1.2rem;color:var(--green)">—</strong>
+      </div>
+      <div class="form-group">
+        <label>Recipient phone number</label>
+        <input type="tel" id="purchasePhone" placeholder="08011111111" maxlength="14" />
+      </div>
+      <button class="btn btn-primary" id="purchaseBtn" onclick="submitPurchase()">Buy Now</button>
+      <div id="purchaseStatus" class="status-banner"></div>
+    </div>
+  </div>
+
+  <!-- ── HISTORY SECTION ────────────────────────────────────────────── -->
+  <div id="historyArea" style="display:none">
+    <div id="txList">
+      <div class="loading-overlay"><div class="spinner"></div><span>Loading history…</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '/api/v1';
+let currentUser = null;
+let allServices = {};
+let selectedTab  = 'home';
+let selectedNet  = '';
+let selectedSvc  = null;
+let selectedDuration = 'all';
+let currentDataPool  = [];
+let pollTimer = null;
+
+// ── Boot ───────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  const saved = sessionStorage.getItem('lendro_user');
+  if (!saved) {
+    // Not logged in — redirect to login page
+    window.location.href = '/index.html';
+    return;
+  }
+  currentUser = JSON.parse(saved);
+  document.getElementById('walletBalance').textContent = fmtNum(currentUser.wallet_balance || 0);
+  await loadServices();
+  switchTab('home', document.getElementById('tab-home'));
+  loadHomeRecent();
+});
+
+// ── Navigate to a service from home panel ───────────────────────────────
+function goToService(type, network) {
+  if (type === 'more') {
+    // Show all tabs — switch to Airtime as default "more" entry
+    const btn = document.getElementById('tab-airtime');
+    switchTab('airtime', btn);
+    return;
+  }
+  const tabId = 'tab-' + type;
+  const btn = document.getElementById(tabId);
+  if (btn) {
+    switchTab(type, btn);
+    if (network) {
+      // Pre-select the network after render
+      setTimeout(() => selectNetworkByName(network), 100);
+    }
+  }
+}
+
+function selectNetworkByName(net) {
+  const pills = document.querySelectorAll('#networkPills .pill');
+  pills.forEach(p => {
+    if (p.textContent.trim().toLowerCase() === net.toLowerCase()) {
+      p.click();
+    }
+  });
+}
+
+// ── Load services ───────────────────────────────────────────────────────
+async function loadServices() {
+  const res = await api('GET', '/client/services.php');
+  if (res.status === 'success') {
+    allServices = res.data;
+  } else {
+    document.getElementById('servicesGrid').innerHTML =
+      '<div class="empty-state">⚠️ Could not load services. Please refresh.</div>';
+  }
+}
+
+// ── Tab switching ───────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  selectedTab = tab;
+  selectedSvc = null;
+  selectedDuration = 'all';
+  hidePurchasePanel();
+
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  document.getElementById('homeArea').style.display     = 'none';
+  document.getElementById('servicesArea').style.display = 'none';
+  document.getElementById('historyArea').style.display  = 'none';
+  document.getElementById('durationFilter').style.display = 'none';
+
+  if (tab === 'home') {
+    document.getElementById('homeArea').style.display = '';
+  } else if (tab === 'history') {
+    document.getElementById('historyArea').style.display = '';
+    loadHistory();
+  } else {
+    document.getElementById('servicesArea').style.display = '';
+    renderServicesForTab(tab);
+  }
+}
+
+// ── Services rendering ──────────────────────────────────────────────────
+function renderServicesForTab(tab) {
+  const grid  = document.getElementById('servicesGrid');
+  const pills = document.getElementById('networkPills');
+  selectedNet = '';
+
+  let pool = {};
+  if (tab === 'airtime') {
+    pool = allServices.airtime || {};
+  } else if (tab === 'data') {
+    pool = allServices.data || {};
+    // Show duration filter for Data tab
+    document.getElementById('durationFilter').style.display = '';
+    resetDurationFilter();
+  } else if (tab.startsWith('bill_')) {
+    const cat = tab.replace('bill_', '');
+    const billData = allServices.bill || {};
+    Object.entries(billData).forEach(([net, items]) => {
+      const filtered = items.filter(s => s.category === cat);
+      if (filtered.length > 0) pool[net] = filtered;
+    });
+  }
+
+  const networks = Object.keys(pool);
+  if (networks.length === 0) {
+    pills.innerHTML = '';
+    grid.innerHTML  = '<div class="empty-state">No services available right now.</div>';
+    return;
+  }
+
+  if (!selectedNet) selectedNet = networks[0];
+  pills.innerHTML = networks.map(n =>
+    `<span class="pill ${n === selectedNet ? 'active' : ''}" onclick="selectNetwork('${n}', this)">${n.toUpperCase()}</span>`
+  ).join('');
+
+  currentDataPool = pool[selectedNet] || [];
+  renderCards(currentDataPool);
+}
+
+function selectNetwork(net, el) {
+  selectedNet = net;
+  selectedSvc = null;
+  selectedDuration = 'all';
+  hidePurchasePanel();
+  resetDurationFilter();
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+
+  let pool = {};
+  if (selectedTab === 'airtime') pool = allServices.airtime || {};
+  else if (selectedTab === 'data') pool = allServices.data || {};
+  else if (selectedTab.startsWith('bill_')) {
+    const cat = selectedTab.replace('bill_', '');
+    Object.entries(allServices.bill || {}).forEach(([n, items]) => {
+      const filtered = items.filter(s => s.category === cat);
+      if (filtered.length > 0) pool[n] = filtered;
+    });
+  }
+  currentDataPool = pool[net] || [];
+  renderCards(currentDataPool);
+}
+
+// ── Duration filter (Data tab) ──────────────────────────────────────────
+function filterByDuration(dur, el) {
+  selectedDuration = dur;
+  selectedSvc = null;
+  hidePurchasePanel();
+  document.querySelectorAll('.dur-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+
+  let items = currentDataPool;
+
+  if (dur === 'hotdeal') {
+    // Cheapest 6 items by price
+    const priced = items.filter(s => s.price != null);
+    priced.sort((a, b) => a.price - b.price);
+    items = priced.slice(0, 6);
+  } else if (dur === 'daily') {
+    items = items.filter(s => {
+      const d = parseInt(s.duration);
+      const u = (s.unit || '').toLowerCase();
+      return (u === 'day' || u === 'days') && d >= 1 && d <= 2;
+    });
+  } else if (dur === 'weekly') {
+    items = items.filter(s => {
+      const d = parseInt(s.duration);
+      const u = (s.unit || '').toLowerCase();
+      if ((u === 'week' || u === 'weeks') && d >= 1 && d <= 2) return true;
+      if ((u === 'day' || u === 'days') && d >= 5 && d <= 10) return true;
+      return false;
+    });
+  } else if (dur === 'monthly') {
+    items = items.filter(s => {
+      const d = parseInt(s.duration);
+      const u = (s.unit || '').toLowerCase();
+      if ((u === 'month' || u === 'months') && d >= 1) return true;
+      if ((u === 'day' || u === 'days') && d >= 25) return true;
+      return false;
+    });
+  }
+  // 'all' → show all items
+
+  renderCards(items);
+}
+
+function resetDurationFilter() {
+  document.querySelectorAll('.dur-pill').forEach(p => p.classList.remove('active'));
+  const allPill = document.getElementById('dur-all');
+  if (allPill) allPill.classList.add('active');
+  selectedDuration = 'all';
+}
+
+function renderCards(items) {
+  const grid = document.getElementById('servicesGrid');
+  if (!items || items.length === 0) {
+    grid.innerHTML = '<div class="empty-state">No plans available for this selection.</div>';
+    return;
+  }
+  grid.innerHTML = `<div class="services-grid">${items.map(svc => `
+    <div class="service-card" id="card-${svc.id}" onclick="selectService(${JSON.stringify(JSON.stringify(svc))})">
+      <div class="service-card-name">${esc(svc.name)}</div>
+      <div class="service-card-meta">${svc.duration ? svc.duration + ' ' + (svc.unit || 'day') + (svc.duration > 1 ? 's' : '') : svc.category || ''}</div>
+      <div class="service-card-price">
+        ${svc.price ? '₦' + fmtNum(svc.price) : '<span>Flexible amount</span>'}
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function selectService(jsonStr) {
+  const svc = JSON.parse(jsonStr);
+  selectedSvc = svc;
+  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+  const el = document.getElementById('card-' + svc.id);
+  if (el) el.classList.add('selected');
+
+  document.getElementById('selectedName').textContent  = svc.name;
+  document.getElementById('selectedMeta').textContent  = svc.duration
+    ? `Valid for ${svc.duration} ${svc.unit}${svc.duration > 1 ? 's' : ''}`
+    : svc.category || '';
+  document.getElementById('selectedPrice').textContent = svc.price
+    ? '₦' + fmtNum(svc.price) : 'Flexible';
+  document.getElementById('purchasePanel').style.display = '';
+  document.getElementById('purchaseStatus').className   = 'status-banner';
+  document.getElementById('purchaseStatus').innerHTML   = '';
+  document.getElementById('purchasePhone').value        = '';
+  setTimeout(() => document.getElementById('purchasePanel').scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+
+function hidePurchasePanel() {
+  document.getElementById('purchasePanel').style.display = 'none';
+}
+
+// ── Buy flow ────────────────────────────────────────────────────────────
+async function submitPurchase() {
+  if (!selectedSvc) return;
+  const phone = document.getElementById('purchasePhone').value.trim();
+  if (!phone) { showBanner('purchaseStatus', 'Please enter a phone number.', 'failed'); return; }
+
+  const btn = document.getElementById('purchaseBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Processing…';
+  clearBanner('purchaseStatus');
+
+  const idempotencyKey = crypto.randomUUID();
+  const res = await api('POST', '/client/order.php', {
+    service_id: selectedSvc.id, phone, idempotency_key: idempotencyKey,
+  });
+
+  btn.disabled = false; btn.textContent = 'Buy Now';
+
+  if (res.status === 'processing' || res.status === 'already_processed') {
+    showBanner('purchaseStatus',
+      `<strong>✅ Order received!</strong> Reference: <code>${res.reference}</code><br/>
+       Your service is being processed. We'll update you shortly.`, 'pending');
+    startPolling(res.reference);
+    refreshWallet();
+  } else {
+    showBanner('purchaseStatus', `<strong>❌ Failed</strong> ${res.message || 'Something went wrong.'}`, 'failed');
+  }
+}
+
+function startPolling(reference) {
+  if (pollTimer) clearInterval(pollTimer);
+  let attempts = 0;
+  pollTimer = setInterval(async () => {
+    attempts++;
+    const res = await api('GET', `/client/status.php?ref=${encodeURIComponent(reference)}`);
+    if (res.status === 'success') {
+      if (res.tx_status === 'success') {
+        clearInterval(pollTimer);
+        showBanner('purchaseStatus',
+          `<strong>🎉 Successful!</strong> ${res.service} delivered to ${res.phone}.<br/>
+           Reference: <code>${reference}</code>`, 'success');
+        refreshWallet();
+      } else if (res.tx_status === 'reversed' || res.tx_status === 'failed') {
+        clearInterval(pollTimer);
+        showBanner('purchaseStatus',
+          `<strong>❌ Transaction failed.</strong> Your wallet has been refunded.<br/>
+           Reference: <code>${reference}</code>`, 'failed');
+        refreshWallet();
+      }
+    }
+    if (attempts >= 24) {
+      clearInterval(pollTimer);
+      showBanner('purchaseStatus',
+        `<strong>⏳ Still processing</strong><br/>Check your history tab for updates.
+         Reference: <code>${reference}</code>`, 'info');
+    }
+  }, 5000);
+}
+
+// ── History ─────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const list = document.getElementById('txList');
+  list.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading history…</span></div>';
+  const res = await api('GET', '/client/transactions.php?limit=30');
+  if (res.status !== 'success' || !res.transactions || !res.transactions.length) {
+    list.innerHTML = '<div class="empty-state">No transactions yet.</div>';
+    return;
+  }
+  list.innerHTML = `<div class="tx-list">${res.transactions.map(tx => `
+    <div class="tx-item">
+      <div class="tx-left">
+        <strong>${esc(tx.service || 'VTU Purchase')}</strong>
+        <small>${esc(tx.phone || '')} · ${tx.time_ago}</small>
+        <small>Ref: ${esc(tx.reference)}</small>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount">₦${fmtNum(tx.amount)}</div>
+        <span class="tx-status ${tx.status}">${tx.status}</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+// ── Home: recent transactions ───────────────────────────────────────────
+async function loadHomeRecent() {
+  const el = document.getElementById('homeRecentTx');
+  const res = await api('GET', '/client/transactions.php?limit=5');
+  if (res.status !== 'success' || !res.transactions || !res.transactions.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:.85rem;">No transactions yet.</div>';
+    return;
+  }
+  el.innerHTML = `<div class="tx-list">${res.transactions.map(tx => `
+    <div class="tx-item">
+      <div class="tx-left">
+        <strong>${esc(tx.service || 'VTU Purchase')}</strong>
+        <small>${esc(tx.phone || '')} · ${tx.time_ago}</small>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount">₦${fmtNum(tx.amount)}</div>
+        <span class="tx-status ${tx.status}">${tx.status}</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+async function refreshWallet() {
+  const res = await api('GET', '/client/wallet.php');
+  if (res.status === 'success') {
+    document.getElementById('walletBalance').textContent = fmtNum(res.balance);
+    currentUser.wallet_balance = res.balance;
+    sessionStorage.setItem('lendro_user', JSON.stringify(currentUser));
+  }
+}
+
+async function logout() {
+  await api('POST', '/auth/logout.php');
+  sessionStorage.clear();
+  window.location.href = '/index.html';
+}
+
+// ── Utilities ───────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  try {
+    const opts = { method, credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+    if (body && method !== 'GET') opts.body = JSON.stringify(body);
+    const res = await fetch(API + path, opts);
+    return await res.json();
+  } catch (err) {
+    return { status: 'failed', message: 'Network error.' };
+  }
+}
+
+function showBanner(id, html, type) {
+  const el = document.getElementById(id);
+  el.innerHTML = html; el.className = `status-banner ${type} show`;
+}
+function clearBanner(id) {
+  const el = document.getElementById(id);
+  el.innerHTML = ''; el.className = 'status-banner';
+}
+function fmtNum(n) {
+  return Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

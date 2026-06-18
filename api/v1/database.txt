@@ -1,0 +1,351 @@
+-- Database: `dbmlendro`
+-- --------------------------------------------------------
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+CREATE TABLE `apicache` (
+  `id` int(11) NOT NULL,
+  `cachekey` varchar(100) DEFAULT NULL,
+  `cachegroup` varchar(50) DEFAULT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload`)),
+  `version` varchar(50) DEFAULT NULL,
+  `expires_at` datetime DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `commissions` (
+  `id` int(40) NOT NULL,
+  `userid` varchar(45) DEFAULT NULL,
+  `sprice` decimal(10,2) DEFAULT NULL,
+  `requestid` varchar(50) DEFAULT NULL,
+  `prodtype` varchar(45) DEFAULT NULL,
+  `cprice` decimal(10,2) DEFAULT NULL,
+  `supplier_cost` decimal(10,2) DEFAULT NULL,
+  `commission` decimal(10,2) DEFAULT NULL,
+  `sprofit` decimal(10,2) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `loans` (
+  `id` int(11) NOT NULL,
+  `userid` int(11) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `interestrate` decimal(5,2) DEFAULT 0.00,
+  `interestamt` decimal(10,2) DEFAULT 0.00,
+  `latefee` decimal(10,2) DEFAULT NULL,
+  `duration_term` varchar(45) DEFAULT NULL,
+  `repaydate` date DEFAULT NULL,
+  `repayamt` decimal(10,2) DEFAULT 0.00,
+  `status` enum('pending','disapproved','approved','disbursed','repaid','defaulted') DEFAULT 'pending',
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL,
+  `userid` int(11) NOT NULL,
+  `message` text NOT NULL,
+  `status` enum('read','unread') DEFAULT 'unread',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `premiumusers` (
+  `id` int(45) NOT NULL,
+  `userid` varchar(45) NOT NULL,
+  `name` varchar(50) DEFAULT NULL,
+  `plan` varchar(45) DEFAULT NULL,
+  `amtpaid` int(45) DEFAULT 0,
+  `dataprice` decimal(45,0) DEFAULT 0,
+  `isdatasent` varchar(20) DEFAULT '0',
+  `regdate` varchar(45) DEFAULT NULL,
+  `updated` varchar(45) DEFAULT NULL,
+  `status` varchar(45) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `providers` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `slug` varchar(50) DEFAULT NULL,
+  `base_url` varchar(255) DEFAULT NULL,
+  `api_key` text DEFAULT NULL,
+  `status` tinyint(4) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `provider_callbacks` (
+  `id` int(11) NOT NULL,
+  `provider_id` int(11) NOT NULL,
+  `reference` varchar(100) DEFAULT NULL,
+  `payload` longtext NOT NULL,
+  `status` varchar(50) DEFAULT 'received',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `provider_services` (
+  `id` int(11) NOT NULL,
+  `provider_id` int(11) DEFAULT NULL,
+  `service_id` int(11) DEFAULT NULL,
+  `provider_code` varchar(100) DEFAULT NULL,
+  `cost_price` decimal(10,2) DEFAULT NULL,
+  `priority` int(11) DEFAULT 1,
+  `status` tinyint(1) DEFAULT 1,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `services` (
+  `id` int(11) NOT NULL,
+  `service_key` varchar(120) UNIQUE DEFAULT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `network` varchar(50) DEFAULT NULL,
+  `type` enum('airtime','data','bill') DEFAULT NULL,
+  `category` varchar(80) DEFAULT NULL COMMENT 'electricity,cabletv,education,betting,insurance',
+  `price` decimal(10,2) DEFAULT NULL,
+  `duration` int DEFAULT NULL,
+  `validity_unit` enum('day','week','month') DEFAULT 'day',
+  `status` tinyint(4) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `repayments` (
+  `id` int(11) NOT NULL,
+  `loanid` int(11) NOT NULL,
+  `amtrepaid` decimal(10,2) NOT NULL,
+  `payment_date` date NOT NULL,
+  `status` enum('pending','completed','overdue') DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `savings` (
+  `id` int(11) NOT NULL,
+  `userid` int(11) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `savings_type` enum('flex','fixed') NOT NULL,
+  `status` enum('active','completed','withdrawn') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `transactions` (
+  `id` int(11) NOT NULL,
+  `userid` int(11) NOT NULL,
+  `service_id` int(11) DEFAULT NULL,
+  `provider_id` int(11) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `transtype` varchar(45) DEFAULT NULL COMMENT 'credit, debit',
+  `refno` varchar(50) DEFAULT NULL,
+  `idempotency_key` varchar(120) DEFAULT NULL,
+  `request_hash` varchar(255) DEFAULT NULL,
+  `provider_reference` varchar(100) DEFAULT NULL,
+  `provider_response` longtext DEFAULT NULL,
+  `callback_data` longtext DEFAULT NULL,
+  `reconciled` tinyint(1) DEFAULT 0,
+  `retry_count` int(11) DEFAULT 0,
+  `next_retry_at` datetime DEFAULT NULL,
+  `last_checked_at` datetime DEFAULT NULL,
+  `request_payload` longtext DEFAULT NULL,
+  `transtitle` varchar(50) DEFAULT NULL,
+  `transdesc` varchar(200) DEFAULT NULL,
+  `status` varchar(45) DEFAULT 'pending' COMMENT 'pending, success, completed, defaulted, failed',
+  `provider_status` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `completed_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `transaction_queue` (
+  `id` bigint(20) NOT NULL,
+  `transaction_id` bigint(20) NOT NULL,
+  `provider_id` int(11) DEFAULT NULL,
+  `status` enum('pending','processing','completed','failed') DEFAULT 'pending',
+  `attempts` int(11) DEFAULT 0,
+  `next_retry_at` datetime DEFAULT NULL,
+  `locked_at` datetime DEFAULT NULL,
+  `worker_token` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL,
+  `ccode` varchar(35) DEFAULT '+234',
+  `phone` varchar(15) NOT NULL,
+  `pin` varchar(255) NOT NULL,
+  `bvn` varchar(45) DEFAULT NULL,
+  `email` varchar(80) DEFAULT NULL,
+  `fullname` varchar(65) DEFAULT NULL,
+  `bank` varchar(50) DEFAULT NULL,
+  `bankcode` varchar(35) DEFAULT NULL,
+  `accno` varchar(45) DEFAULT NULL,
+  `accname` varchar(50) DEFAULT NULL,
+  `isverify` varchar(20) DEFAULT '0' COMMENT 'phone=1,bvn=2',
+  `status` enum('active','inactive','suspended') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `wallets` (
+  `id` int(11) NOT NULL,
+  `userid` int(11) NOT NULL,
+  `balance` decimal(10,2) DEFAULT 0.00,
+  `bucbalance` decimal(10,8) DEFAULT 0.00000000,
+  `loanlimit` int(50) DEFAULT 0,
+  `totalscore` int(40) DEFAULT 0,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `loancount` int(45) DEFAULT 0,
+  `plan` varchar(25) DEFAULT NULL,
+  `ostotalearn` decimal(10,2) DEFAULT 0.00,
+  `osbalance` decimal(10,2) DEFAULT 0.00,
+  `vscore` int(45) DEFAULT 0,
+  `usage_recent` int(45) DEFAULT 0,
+  `upoint` int(45) DEFAULT 0,
+  `repayscore` int(45) DEFAULT 0,
+  `ctpoint` int(45) DEFAULT 0,
+  `bucwallet` varchar(60) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `wallet_logs` (
+  `id` int(11) NOT NULL,
+  `userid` int(11) DEFAULT NULL,
+  `type` enum('credit','debit') DEFAULT NULL,
+  `amount` decimal(10,2) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `reference` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `balance_before` decimal(10,2) DEFAULT 0.00,
+  `balance_after` decimal(10,2) DEFAULT 0.00
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+ALTER TABLE `apicache`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `cachekey` (`cachekey`);
+
+ALTER TABLE `commissions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `requestid` (`requestid`);
+
+ALTER TABLE `loans`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `userid` (`userid`);
+
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `userid` (`userid`);
+
+ALTER TABLE `premiumusers`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `userid` (`userid`);
+
+ALTER TABLE `providers`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `slug` (`slug`);
+
+ALTER TABLE `provider_callbacks`
+  ADD PRIMARY KEY (`id`);
+
+ALTER TABLE `provider_services`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_map` (`provider_id`,`service_id`);
+
+ALTER TABLE `repayments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `loanid` (`loanid`);
+
+ALTER TABLE `savings`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `userid` (`userid`);
+
+ALTER TABLE `services`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_service` (`name`,`network`,`type`);
+
+ALTER TABLE `transactions`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `refno` (`refno`),
+  ADD UNIQUE KEY `idempotency_key` (`idempotency_key`),
+  ADD KEY `userid` (`userid`);
+
+ALTER TABLE `transaction_queue`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `status` (`status`),
+  ADD KEY `next_retry_at` (`next_retry_at`),
+  ADD KEY `transaction_id` (`transaction_id`);
+
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `phone` (`phone`);
+
+ALTER TABLE `wallets`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `userid` (`userid`);
+
+ALTER TABLE `wallet_logs`
+  ADD PRIMARY KEY (`id`);
+
+
+ALTER TABLE `apicache`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `commissions`
+  MODIFY `id` int(40) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `loans`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `notifications`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `premiumusers`
+  MODIFY `id` int(45) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `providers`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `provider_callbacks`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `provider_services`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `repayments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `savings`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `services`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `transactions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `transaction_queue`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `users`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `wallets`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `wallet_logs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+
+ALTER TABLE `loans`
+  ADD CONSTRAINT `loans_ibfk_1` FOREIGN KEY (`userid`) REFERENCES `users` (`id`);
+
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`userid`) REFERENCES `users` (`id`);
+
+ALTER TABLE `repayments`
+  ADD CONSTRAINT `repayments_ibfk_1` FOREIGN KEY (`loanid`) REFERENCES `loans` (`id`);
+
+ALTER TABLE `savings`
+  ADD CONSTRAINT `savings_ibfk_1` FOREIGN KEY (`userid`) REFERENCES `users` (`id`);
+COMMIT;

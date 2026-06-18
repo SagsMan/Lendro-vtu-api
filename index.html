@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lendro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="min-h-[calc(100vh-80px)] bg-indigo-800 flex items-center justify-center text-white">
+<!-- bg-gradient-to-br from-indigo-900 to-indigo-700-->
+<div id="root"></div>
+
+<script src="assets/components/ehelper.jsx"></script>
+
+<script>
+(function(){
+  const { useState,useEffect,useRef,createElement } = React;
+  const e = createElement;
+  function App() {
+    const pinRef = useRef(null);
+
+    const [loggedIn, setLoggedIn] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const [password, setPassword] = useState(["","","","","",""]);
+    const [activeSection, setActiveSection] = useState("prelogin");
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+
+    const [regData, setRegData] = useState({
+      fullname: "",
+      email: "",
+      phone: "",
+      pin: "",
+      confirmPin: ""
+    });
+
+    const [fpwd, setFpwd] = useState("");
+
+    const resetMsg = () => { setError(""); setSuccess(""); };
+
+    const StorePhoneNo = () => {
+      if (regData.phone) window.saveStorage("lendro.userphone", regData.phone);
+    };
+
+    const savePrePhoneNo = (e)=>{
+      e.preventDefault(); resetMsg();
+      if (regData.phone.length !== 10) {  setError("Please enter a valid 10-digit phone number"); return; }
+      StorePhoneNo();
+      setActiveSection("login");
+    };
+
+    useEffect(() => {
+      const savedPhone = window.getStorage("lendro.userphone");
+      if (savedPhone) {
+        setRegData(r => ({ ...r, phone: savedPhone }));
+        setActiveSection("login");
+      }else{
+        setActiveSection("prelogin");
+      }
+    }, []);
+
+    useEffect(() => {
+      if (!loading && activeSection === "login") {  setTimeout(() => pinRef.current?.focus(), 10);
+      }
+    }, [loading, activeSection]);
+
+    useEffect(() => { 
+      resetMsg()
+      const savedPhone = window.getStorage("lendro.userphone");
+      if (activeSection === "login" && (!savedPhone || regData.phone.length !== 10)) { setActiveSection("prelogin");  }  
+
+      if(activeSection === "reg1" && regData.fullname === ""){ setActiveSection("reg"); setError("Your fullname is required"); }
+      if(activeSection === "reg1" && regData.phone.length < 10){ setActiveSection("reg"); setError("Phone number must be 10 digits numbers"); }
+      if(activeSection === "reg2" && regData.pin.length < 6){ setActiveSection("reg1"); setError("Create a 6-digit PIN to register."); }
+      if(activeSection === "reg2" && regData.confirmPin !== regData.pin) { setActiveSection("reg1"); setError("Your 6-digit PINs do not match."); }
+
+    }, [activeSection, regData.fullname, regData.phone, regData.pin, regData.confirmPin]);
+
+    useEffect(() => {
+      async function checkAuth() {
+        try {
+          const res = await fetch(`${apiEndPoint}/auth/auth.php`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded" }  });
+          const text = await res.text();
+          let data = {};
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            data = { loggedin: false };
+          }
+          setLoggedIn(data.loggedin);
+        } catch {
+          setLoggedIn(false);
+        } finally {
+          setLoading(false);
+        }
+      }
+      checkAuth();
+    }, []);
+
+    useEffect(() => {
+      if (loggedIn) window.location.href = `${baseUrl}/app.html`;
+    }, [loggedIn]);
+
+    useEffect(() => { lucide.createIcons(); });
+
+    const AllowNumOnly = (e) => {
+      if (!/[0-9]/.test(e.key) && !["Backspace","Delete","ArrowLeft","ArrowRight","Tab"].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+
+    const handlePinChange = (val, i) => {
+      const p = [...password];
+      p[i] = val.slice(-1);
+      setPassword(p);
+      if (val && i < 5) document.getElementById(`pin-${i+1}`).focus();
+      if (p.every(v => v !== "")) autoLogin(p.join(""));
+    };
+
+    const handleKeyDown = (e, index) => {
+      if (e.key === "Backspace") {
+        const newPass = [...password];
+        if (!newPass[index] && index > 0) {
+          document.getElementById(`pin-${index - 1}`).focus();
+        }
+        newPass[index] = "";
+        setPassword(newPass);
+      }
+    };
+
+    const autoLogin = async (pwd) => {
+      resetMsg();
+      setBusy(true);
+      try {
+        let ver = getStorage("lendro.services.ver");
+        const res = await fetch(`${apiEndPoint}/auth/login.php`, {
+          method: "POST",  credentials: "include",  headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `phone=${encodeURIComponent(regData.phone)}&pin=${encodeURIComponent(pwd)}&ver=${encodeURIComponent(ver)}` });
+        
+          const text = await res.text();
+          let data = {};
+          
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            console.log("Login error: ",text);
+            data = { status: "failed" };
+          }
+
+        if (data.status === "success") {
+          StorePhoneNo();
+          window.saveStorage("lendro.user",data?.data?.user);
+          if(data?.data?.wallet) window.saveStorage("lendro.wallet",data?.data?.wallet);
+          if(data?.data?.alerts) window.saveStorage("lendro.alerts",data?.data?.alerts || []);
+          if(data?.data?.services) window.saveStorage("lendro.services",data?.data?.services);
+          const newVer = data?.data?.services?.version;
+          if(newVer && newVer != ver) window.saveStorage("lendro.services.ver",newVer);
+          
+          setLoggedIn(true);
+        } else {
+          if(data.status === "LE01"){ setError(data.message || "Phone number is required"); setActiveSection("prelogin"); }
+          else{ setError(data.message || "Invalid PIN"); }
+
+          setPassword(["","","","","",""]);
+          pinRef.current?.focus();
+        }
+      } catch {
+        setError("Server error");
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const handleRegChange = (e) => {
+      let { name, value } = e.target;
+      if(name === "prephone") { name = "phone"; }
+      if (["phone","pin","confirmPin"].includes(name)){
+        value = value.replace(/\D/g,"");
+        if (name === "pin" && value.length > 6) return;    
+      }
+      setRegData(r => ({ ...r, [name]: value }));         
+    };
+
+    const handleRegister = async (e) => {
+      e.preventDefault();
+      resetMsg();
+      
+      if (regData.pin !== regData.confirmPin) { setError("PINs do not match"); setActiveSection("reg1"); return; } 
+      if (regData.email === "") { setError("Email adddress is required!"); setActiveSection("reg2"); return; }
+
+      setBusy(true);
+      try {
+        const res = await fetch(`${apiEndPoint}/auth/register.php`, {
+          method: "POST",  credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams(regData).toString()
+        });
+        
+        const text = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          data = { status: "failed", message: "Registration failed!" };
+        }
+
+        if (data.status === "success") {
+          StorePhoneNo();
+          setSuccess("Registration successful. Please login.");
+          setActiveSection("login");
+        }else if (data.status === "RE01") {
+          setError(data.message || "Try another phone number"); setActiveSection("reg");
+        }else if (data.status === "RE02") {
+          setError(data.message || "Try another pins"); setActiveSection("reg1");
+        }else if (data.status === "RE03") {
+          setError(data.message || "Try another email address"); setActiveSection("reg2");
+        } else {
+          setError(data.message || "Registration failed");
+        }
+      } catch {
+        setError("Server error");
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    // Forgot PIN request
+    const handleForgotPassword = async (e) => {
+      e.preventDefault(); resetMsg();
+      setBusy(true);
+      try {
+        const res = await fetch(`${apiEndPoint}/auth/forgot-pwd.php`, {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `fstr=${encodeURIComponent(fpwd)}`
+        });
+        const text = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          data = { status: "failed", message: "Failed to process request!" };
+        }
+
+        if (data.status === "success") {
+          setSuccess("Reset OTP has been successfully sent to your phone number and email");
+        } else {
+          setError(data.message || "Unable to process request");
+        }
+      } catch (e) {
+        setError("Server error");
+      } finally {
+        setBusy(false);
+      }
+    };
+    
+    if (loading) {
+      return e("div", { className: "text-center" },
+        e("div", { className: "h-10 w-10 mx-auto border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" }),
+        e("p", { className: "mt-3 text-sm" }, "Loading…")
+      );
+    }
+
+    return e("div", { className: "w-full max-w-sm rounded-xl py-5 px-5 relative" }, //p-6 pt-0 -mt-[6rem]
+    //[
+      //e(SpinnerOverlay, { show: busy }),
+
+      e("div", { className: "text-center mb-4" },
+        e("h1", { className: "text-3xl font-bold tracking-wide" }, "LEND", e("span",{className:"text-yellow-400"},"RO"))
+      ),
+
+      //prelogin
+      activeSection === "prelogin" && e("div", {key: "prelog"}, 
+        e("div", { className: "mb-4 text-sm text-center" }, "Log in with your 10-digit phone number."),
+
+          e("div", { className: "flex items-center w-full mb-4" },
+              e("span", { className: "px-3 py-2 bg-indigo-900/50 border border-indigo-500 border-r-0 rounded-l-lg text-white/50 text-md"}, "+234"),
+              e("input",{type:"text", placeholder:"Phone Number",name:"prephone",maxLength:10, className:"w-full px-3 py-2 bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500", value:regData.phone,onChange:handleRegChange,onKeyDown: (e) => { AllowNumOnly(e); }}),
+              e("button", { type:"button", disabled: regData.phone.length !== 10, className: "px-3 py-2 bg-yellow-500 border border-indigo-500 border-l-0 rounded-r-lg text-black/50 text-md font-semibold",onClick: (e)=>savePrePhoneNo(e)},
+                  e("i", { "data-lucide": "arrow-right", className: "w-5 h-6" })  
+              ),
+          ),
+          
+          e("div", { className: "text-sm text-center" }, "New user? ", e("a", { href: "#", className: "text-yellow-400", onClick: ()=>{ setActiveSection("reg"); } }, "Register")),
+      ),
+
+      //login
+      activeSection === "login" && e("div", {},
+        e("p",{ key: "lp1", className: "mb-4 text-sm text-center" },"Login with your 6-digit PIN.",regData.phone !== "" &&
+            e("a", { href: "#", className: "inline-flex items-center gap-1 ml-2 text-info hover:underline", onClick: () => setActiveSection("prelogin"), },"Change number:", e( "span", { className: "inline-flex items-center gap-1 text-green-300 ml-1" }, e("i", {"data-lucide": "phone", className: "w-3 h-3", }), `***${regData.phone.slice(-4)}` ) )
+        ),
+
+        e("div",{className:"flex justify-center gap-2 mb-4"},
+          password.map((v,i)=>
+            e("input",{
+              key:i, id:`pin-${i}`, ref:i===0?pinRef:null,
+              type:"password",maxLength:1,value:v, inputMode: "numeric",
+              className:"w-10 h-12 text-center text-xl rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500",
+              onChange:ev=>handlePinChange(ev.target.value,i),
+              onKeyDown: (ev)=>handleKeyDown(ev, i)
+            })
+          )
+        ),
+        e("p",{className:"text-sm text-center"},e("a",{href:"#",className:"text-yellow-400",onClick:()=>setActiveSection("fpwd")},"Forgot PIN?")),
+        e("p", { className: "text-sm text-center" }, "New user? ", e("a", { href: "#", className: "text-yellow-400", onClick: ()=>{ setActiveSection("reg"); } }, "Register")),
+      ),
+      
+      //register
+      activeSection === "reg" && e("div", {},
+      e("div", { className: "text-sm text-center mb-4" }, "Enter your phone number linked to your BVN to register."),
+          e("div", { className: "flex items-center w-full mb-2" },
+              e("span", { className: "px-3 py-2 bg-indigo-900/50 border border-indigo-500 border-r-0 rounded-l-lg text-white/50 text-md"}, "+234"),
+              e("input",{type:"text", placeholder:"Phone Number",name:"phone",maxLength:10, className:"w-full px-3 py-2 rounded-r-lg bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500", value:regData.phone,onChange:handleRegChange,onKeyDown:AllowNumOnly}),
+          ),
+          e("input",{placeholder:"Full Name",name:"fullname",
+            className:"w-full px-3 py-2 mb-3 rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500", value:regData.fullname,onChange:handleRegChange}),
+
+          e("button",{className:"mb-4 w-full bg-yellow-400 text-black py-3 rounded",onClick:()=>setActiveSection("reg1")},"Next"),
+          e("p", { className: "text-sm text-center" }, "Already have an account? ", e("a", { href: "#", className: "text-yellow-400", onClick: function () { setActiveSection("login"); } }, "Log in") )
+      ),
+
+      activeSection === "reg1" && e("div", {},
+        e("div", { className: "text-sm text-center mb-4" }, "Enter your 6-digit pin and confirm the pin to continue your registration."),
+
+        e("input",{placeholder:"Create PIN",name:"pin",maxLength:6,type:"password",
+          className:"w-full mb-2 px-3 py-2 rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500", value:regData.pin,onChange:handleRegChange}),
+
+        e("input",{placeholder:"Confirm PIN",name:"confirmPin",maxLength:6,type:"password",
+          className:"w-full mb-3 px-3 py-2 rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500",  value:regData.confirmPin,onChange:handleRegChange}),
+        
+        e("div",{className:"flex gap-4 mb-4"},
+          e("button", { onClick: ()=>{ setActiveSection("reg"); }, className: "w-1/2 bg-gray-400 text-black py-3 rounded" }, "Back"),
+          e("button",{className:"w-1/2 bg-yellow-400 text-black py-3 rounded", onClick:()=>setActiveSection("reg2")},"Next"),
+        ),
+
+        e("p", { className: "text-sm text-center" }, "Already have an account? ", e("a", { href: "#", className: "text-yellow-400", onClick: function () { setActiveSection("login"); } }, "Log in")),
+      ),
+
+      activeSection === "reg2" && e("div", {},
+        e("div", { className: "text-sm text-center mb-4" }, "Enter your email for pin reset and notification to complete your registration."),
+        
+        e("input",{placeholder:"Email Address",name:"email", className:"w-full mb-3 px-3 py-2 rounded bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500", value:regData.email,onChange:handleRegChange}),
+
+        e("div",{className:"flex gap-4 mb-4"},
+          e("button", { onClick: ()=>{ setActiveSection("reg1"); }, className: "w-1/2 bg-gray-400 text-black py-3 rounded" }, "Back"),
+          e("button",{className:"w-1/2 bg-yellow-400 text-black py-3 rounded", onClick:handleRegister},"Register"),
+        ),
+
+        e("p", { className: "text-sm text-center" }, "Already have an account? ", e("a", { href: "#", className: "text-yellow-400", onClick: function () { setActiveSection("login"); } }, "Log in")),
+      ),
+
+      //Forgot Password Section
+        activeSection === "fpwd" && e("div", { key: "fpwd" }, [
+          //Dial *565*0# from your registered phone number to get your BVN.
+          e("div", { className: "text-sm text-center mb-4" }, "Enter your 10-digit phone number to reset your PIN."),
+          
+          e("div", { className: "flex items-center w-full mb-2" },
+              e("span", { className: "px-3 py-2 bg-indigo-900/50 border border-indigo-500 border-r-0 rounded-l-lg text-white/50 text-md"}, "+234"),
+              e("input",{type:"text", placeholder:"Phone Number",name:"fpass",maxLength:10, className:"w-full px-3 py-2 rounded-r-lg bg-indigo-900/50 border border-indigo-500 focus:outline-none focus:ring-0 focus:ring-indigo-500", value:fpwd,onChange:(ev)=>{ setFpwd(ev.target.value); },onKeyDown:(e) => { AllowNumOnly(e); } }),
+          ),
+
+          e("button", { className: "mb-4 w-full bg-yellow-400 text-black py-3 rounded", onClick: handleForgotPassword }, "Reset PIN"),       
+          e("p", { className: "text-sm text-center" }, "Already have an account? ", e("a", { href: "#", className: "text-yellow-400", onClick: function () { setActiveSection("login"); } }, "Log in")
+          ),   
+        ]),
+
+      error && e("div",{className:"mt-3 text-sm text-red-400 text-center"},error),
+      success && e("div",{className:"mt-3 text-sm text-green-400 text-center"},success)
+    //]
+  );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+  lucide.createIcons();
+})();
+</script>
+</body>
+</html>
