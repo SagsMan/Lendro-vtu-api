@@ -277,3 +277,57 @@ function getProviderId(string $slug, PDO $db): int
 
     return (int) $row['id'];
 }
+
+  // ── Backward-compatibility aliases ───────────────────────────────────────────
+
+  /**
+   * Old auth guard used in legacy endpoint files.
+   * Prefer requireAuth() in all new code.
+   */
+  function Securepg(): void
+  {
+      requireAuth();
+  }
+
+  /**
+   * Alias for getAllServices — used in legacy home.php.
+   */
+  function getServices(array $opts = []): string
+  {
+      global $db;
+      return getAllServices($db);
+  }
+
+  /**
+   * Fetch services filtered by type / network / category.
+   * Used by legacy show.php.
+   */
+  function getServicesBy(?string $type, ?string $network, ?string $category): string
+  {
+      global $db;
+      $sql    = 'SELECT * FROM services WHERE status = 1';
+      $params = [];
+      if ($type)     { $sql .= ' AND type = ?';           $params[] = $type; }
+      if ($network)  { $sql .= ' AND LOWER(network) = ?'; $params[] = strtolower($network); }
+      if ($category) { $sql .= ' AND category = ?';       $params[] = $category; }
+      $sql .= ' ORDER BY type ASC, network ASC, price ASC';
+      $stmt = $db->prepare($sql);
+      $stmt->execute($params);
+      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      $grouped = [];
+      foreach ($rows as $row) {
+          $t = $row['type']                ?: 'other';
+          $n = strtolower($row['network']) ?: 'general';
+          $grouped[$t][$n][] = [
+              'id'       => (int) $row['id'],
+              'key'      => $row['service_key'],
+              'name'     => $row['name'],
+              'price'    => $row['price'] !== null ? (float) $row['price'] : null,
+              'category' => $row['category'],
+              'duration' => $row['duration'],
+              'unit'     => $row['validity_unit'],
+          ];
+      }
+      return json_encode(['status' => 'success', 'data' => $grouped], JSON_UNESCAPED_UNICODE);
+  }
+  
