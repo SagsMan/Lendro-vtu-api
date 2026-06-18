@@ -169,9 +169,12 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
           if(popupOpen?.data?.dwat === "viewdataitems"){
               url = `/client/show.php`;
               body = { ...body, type:"data", network:billercode };
+          } else if(popupOpen?.data?.dwat === "viewcatitems"){
+              url = `/client/show.php`;
+              body = { ...body, type:"bill", category:billercode };
           } else if(popupOpen?.data?.dwat === "viewitems"){
-              url = `/api/getitems.php`;
-              body = { ...body, billercat, billercode };
+              url = `/client/show.php`;
+              body = { ...body, type:"bill", category:billercode };
           } else if(popupOpen?.data?.dwat === "viewcatbiller"){
               // reserved
           }
