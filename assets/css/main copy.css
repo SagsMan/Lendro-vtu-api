@@ -1,0 +1,150 @@
+ /* ✅ YOUR ORIGINAL STYLES – UNTOUCHED */
+    body { background:#6b46c1; font-family: sans-serif,'Segoe UI'; margin:0; padding:0; }
+
+    .btn-primary,.btn-primary:hover{border-color:#6b46c1; background-color:#6b46c1;}
+    .btn-outline-primary{border-color:#6b46c1;}
+    .btn-outline-primary:hover{background-color:#6b46c1;}
+
+    .app-shell { max-width:430px; margin:0 auto; height:100vh; position:relative; background:white; overflow:hidden; }
+    .app-content { padding:16px; height:calc(100% - 70px); overflow-y:auto; }
+
+    .bottom-nav { height:70px; background:#fff; display:flex; justify-content:space-around; align-items:center; position:absolute; bottom:0; left:0; right:0; box-shadow: 0 -6px 18px rgba(0,0,0,0.08); border-top:none; }
+    .nav-item-btn { text-align:center; color:#6b7280; font-size:0.8rem; }
+    .nav-item-btn.active { color:#6b46c1; }
+    .nav-item-btn i { font-size:1.4rem; }
+    .page-header { position:relative; width:100%; display:flex; justify-content:space-between; align-items:center; padding:5px 0; background:rgba(255,255,255,0.0); }
+
+    .page-header .app-title { font-weight:700; font-size:1.5rem; color:#6b46c1; text-align:left;letter-spacing: 1px;}
+    .page-header .app-title span { color:#ffbf00; }
+
+    .page-header .header-icons { display:flex; align-items:center; }
+    .page-header .header-icons i { font-size:1rem; margin-left:12px; cursor:pointer; color:#6b46c1; }
+    
+    #sideMenu { position:absolute; top:0; right:-260px; width:260px; height:100%; background:white; border-left:1px solid #ddd; border-top-left-radius:28px; border-bottom-left-radius:28px; padding:20px; transition:0.35s ease; box-shadow: none; z-index: 1000; }
+    #sideMenu.open { right:0; box-shadow: -2px 0 6px rgba(0,0,0,0.12); }
+    .profile-header { display:flex; align-items:center; margin-bottom:16px; }
+    .profile-header img { width:32px; height:32px; border-radius:50%; margin-right:10px; background:#e5e7eb; }
+    .profile-info { display:flex; flex-direction:column; overflow:hidden; }
+    .profile-name { font-weight:bold; font-size:0.85rem; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .profile-phone { font-size:0.7rem; color:#6b7280; margin:0; }
+    .menu-item { padding:14px 0; font-size:0.78rem; display:flex; align-items:center; justify-content:space-between; font-weight:bold; }
+    .menu-item i:first-child { margin-right:10px; font-size:0.95rem; color:#6b46c1; }
+    .menu-item .caret { font-size:0.85rem; color:#9ca3af; margin-left:auto; }
+    .greeting { font-size:1rem; margin-bottom:5px; }
+
+    .bg-theme{background:#4f46e5 !important;}
+    .loan-limit-box { /*background:linear-gradient(180deg,#6b46c1,#7c5ce6);*/ background:#6b46c1 !important; color:#fff; border-radius:10px; text-align:center; }
+    .loan-limit-box .title { font-size:0.85rem; opacity:0.75;}
+    .loan-limit-box .amount { font-size:2rem; font-weight:800; margin-bottom:1px; font-family:sans-serif;}
+    .loan-limit-box .note { font-size:0.8rem; opacity:0.85; }
+    .loan-limit-box .outstanding{font-size:0.9rem; opacity:0.85;}
+    /* ToDo component */
+    .home-actions-title { font-size:0.85rem; color:#666666;}
+    .home-actions { display:flex; justify-content:space-between; gap:8px; }
+    .action-box { flex:1; background:rgb(238, 242, 255); color:#111; border-radius:5px; padding:8px; text-align:center; font-weight:300; font-size:0.75rem; cursor:pointer; line-height: normal;}
+    .action-box i { font-size:1.2rem; display:block; margin-bottom:4px; }
+    
+    /* Advert component */
+    .advert-wrap { margin-top:20px; position:relative; }
+    .advert-viewport { overflow:hidden; cursor:grab; }
+    .advert-slider { display:flex; gap:16px; transition: transform 0.3s ease; will-change: transform; }
+    .advert-box { flex:0 0 140px; height:110px; background:#333333; color:white; border-radius:12px;/* padding:16px 14px;*/ text-align:center; font-weight:600; font-size:0.95rem; display:flex; align-items:center; justify-content:center; user-select:none; touch-action: pan-y; }
+
+    .adv-controls { position:absolute; bottom:10px; right:10px; display:flex; gap:4px; z-index:5; }
+    .adv-controls button{background: none;border:none;color:rgba(124, 92, 230,0.8);padding:0px;}
+
+    /* Ajo Page */
+    .pg-title { font-weight:500; font-size:1.35rem;}
+    .ajo-card { background:#fff; border-radius:12px; padding:12px; margin-bottom:16px; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+    .ajo-title { font-weight:bold; font-size:1rem;}
+    .ajo-subtitle{font-weight:500; font-size:0.75rem; color:#333; padding:5px 10px; border-radius:5px; text-align:center; background:rgba(124, 92, 230, 0.08); }
+
+    .participant { display:flex; justify-content:space-between; align-items:center; padding:3px 4px; border-bottom:1px solid #eee; font-size:0.75rem; }
+    .participant > * { flex:1; }
+    .participant span:first-child{ flex:2;}
+    .participant span:nth-child(2){flex:1.5;}
+    .participant:last-child { border-bottom:none; }
+    .participant-name { font-weight:500;}
+    .leader { font-weight:500; color:#6b46c1; }
+
+    .participant-details i { font-size:0.85rem; margin:0 2px;}
+    .participant-duration, .participant-frequency { font-size:0.75rem; text-align: left;}
+    .ajoheader{ font-weight:500;font-size:0.75rem; background:rgba(124, 92, 230,0.08); padding:4px 5px;border-radius: 5px;}
+    .dotteduline{border-bottom:dotted 1px rgba(119, 235, 4, 0.8);color:rgb(119, 235, 4);}
+    .btn-bg1{padding:1px 3px !important;background:#ddd;color:#333 !important;}
+
+    .ajo-hdgroup{display: flex; flex-direction: row;gap:10px;justify-content:space-between;}
+    .ajo-nav{ text-align: right;}.ajo-nav .btn-sm{padding:1px 5px !important; margin:-3px 0 0 5px; font-size:12px;}
+    .btn-disabled,.btn-disabled:hover{background:#eee;color:#666;}
+    .dd-btn button{background: none;} .dd-menu{font-size:1em;}
+    .dropdown-toggle::after {
+    display: none !important; 
+    }
+
+    .error-msg {text-align: center; color: #ff9898 /*#ffabac*/; }
+    .success-msg{color: #A8FFB0;text-align: center;}
+
+    .text-green-300{color:#A8FFB0 !important;}
+    .text-warning-300{color:#ffd468;}
+    .text-white{color:#ffffff !important;}
+    /************** Pull to Refresh **************/
+.pull-to-refresh {
+  position: relative;
+  overscroll-behavior: contain;
+}
+
+.pull-indicator {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  padding: 6px 0;
+  height: 0;
+  overflow: hidden;
+  transition: height 0.2s ease;
+}
+
+.pull-indicator.show {
+  height: 40px;
+}
+/* iOS Pull To Refresh */
+.ptr-wrapper {
+  position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ptr-indicator {
+  position: absolute;
+  top: 60px; /* BELOW YOUR HEADER */
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 0;
+  overflow: hidden;
+  transition: height 0.25s ease;
+  z-index: 10;
+}
+
+.ptr-indicator.show {
+  height: 40px;
+}
+
+.ptr-spinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid rgba(0,0,0,0.15);
+  border-top: 3px solid #6b46c1;
+  animation: ptr-spin 0.8s linear infinite;
+}
+
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
+.mtn-icon{ background:#ffcb00; color:#eef2ff; margin:auto;height:20px; width:20px; border-radius:50%; line-height: 20px; }
+.airtel-icon{ background:#ff0000; color:#eef2ff; margin:auto;height:20px; width:20px; border-radius:50%; line-height: 20px; }
+.glo-icon{ background:#08b313; color:#eef2ff; margin:auto;height:20px; width:20px; border-radius:50%; line-height: 20px; }
+.etisalat-icon{ background:#29613b; color:#eef2ff; margin:auto;height:20px; width:20px; border-radius:50%; line-height: 20px; }

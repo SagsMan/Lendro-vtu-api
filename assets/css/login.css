@@ -1,0 +1,86 @@
+body {
+      margin:0;
+      font-family: sans-serif,'Segoe UI';
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      justify-content: center;
+      /*#1f6015,#1e7311*/
+      background: linear-gradient(145deg, #6b46c1,#4841c6);
+      color: #fff; padding: 0 20px;
+    }
+
+    .error-msg {text-align: center; color: #ff9898 /*#ffabac*/; }
+    .success-msg{color: #A8FFB0;text-align: center;}
+
+    .login-card {
+      width: 100%;margin:-10% auto 0 auto; text-align: center;
+    }
+
+    .logo {
+      text-align: center;
+      font-size: 45px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      letter-spacing: 1px;
+    }
+
+    .logo span {
+      color:rgb(255, 193, 7);
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      font-size: 14px;
+      display: block;
+      margin-bottom: 6px;
+      opacity: 0.9;
+    }
+
+    .text-green-300{color:#A8FFB0 !important;}
+    .text-warning-300{color:#ffd468;}
+
+    .m-tb2{margin:-10px 0 20px 0;}
+    .m-t2{margin-top: -10px;}
+    .m-t3{margin-top: -20px;}
+
+.backlink{color: #fff;display: block; text-decoration: underline;margin:10px 0;}
+    .login-btn, .btn-login{      
+      margin-top: 10px;
+      padding: 10px 15px;
+      border-radius: 5px;
+      border: none;
+      font-size: 14px;
+      font-weight: 500;
+      background: linear-gradient(0deg, #a46127,#ffbf00);
+      color: #000;
+      cursor: pointer;
+      transition: transform 0.08s ease;
+    }
+
+    .login-btn:active {
+      transform: scale(0.98);
+    }
+    
+    .logout-box {
+      text-align: center;
+      font-size: 15px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .logout-btn {
+      margin-top: 10px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: none;
+      background: #ff6262;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+p{margin: 10px 0 5px 0 !important; }
+    .text-white{color:#fff;}.mt-5{margin-top:20px !important;}
+    .w-90{width: 90%;}
