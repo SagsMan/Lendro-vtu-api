@@ -231,33 +231,39 @@
     };
 
     // Forgot PIN request
-    const handleForgotPassword = async (e) => {
-      e.preventDefault(); resetMsg();
-      setBusy(true);
-      try {
-        const res = await fetch(`${apiEndPoint}/auth/forgot-pwd.php`, {
-          method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: `fstr=${encodeURIComponent(fpwd)}`
-        });
-        const text = await res.text();
-        let data = {};
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          data = { status: "failed", message: "Failed to process request!" };
-        }
+    // Forgot PIN — skip all verification, go straight to set-new-PIN
+      const handleForgotPassword = (e) => {
+        e.preventDefault(); resetMsg();
+        setNewPin({ pin: "", confirmPin: "" });
+        setActiveSection("fpwd2");
+      };
 
-        if (data.status === "success") {
-          setSuccess("Reset OTP has been successfully sent to your phone number and email");
-        } else {
-          setError(data.message || "Unable to process request");
-        }
-      } catch (e) {
-        setError("Server error");
-      } finally {
-        setBusy(false);
-      }
-    };
+      // Forgot PIN step 2 — set new PIN directly (no OTP)
+      const handleResetPin = async (e) => {
+        e.preventDefault(); resetMsg();
+        if (newPin.pin.length < 6) { setError("PIN must be 6 digits"); return; }
+        if (newPin.pin !== newPin.confirmPin) { setError("PINs do not match"); return; }
+        setBusy(true);
+        try {
+          const res = await fetch(`${apiEndPoint}/auth/reset-pin.php`, {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `phone=${encodeURIComponent(fpwd)}&pin=${encodeURIComponent(newPin.pin)}`
+          });
+          const text = await res.text();
+          let data = {};
+          try { data = JSON.parse(text); } catch(err) { data = { status: "failed" }; }
+          if (data.status === "success") {
+            if (fpwd && fpwd.length >= 10) {
+              setRegData(r => ({ ...r, phone: fpwd }));
+              window.saveStorage("lendro.userphone", fpwd);
+            }
+            setSuccess("PIN updated! Please log in with your new PIN.");
+            setActiveSection("login");
+          } else {
+            setError(data.message || "Could not reset PIN. Try again.");
+          }
+        } catch(err) { setError("Server error"); } finally { setBusy(false); }
+      };
     
     if (loading) {
       return e("div", { className: "text-center" },
