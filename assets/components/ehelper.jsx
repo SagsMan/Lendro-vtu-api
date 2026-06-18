@@ -17,26 +17,22 @@ window.Plans = {"1":["Basic Plan",null,500,null,"500MB","(1day)",50,0],"2":["Bro
 
 window.flwImages = {"mtn":"assets/images/mtn.jpg","airtel":"assets/images/airtel.jpg","glo":"assets/images/glo.jpg","9mobile":"assets/images/9mobile.jpg","etisalat":"assets/images/etisalat.jpg","mtn-data":"assets/images/mtn.jpg","airtel-data":"assets/images/airtel.jpg","glo-data":"assets/images/glo.jpg","9mobile-data":"assets/images/9mobile.jpg","etisalat-data":"assets/images/etisalat.jpg","smile-direct":"assets/images/smile.jpg","spectranet":"assets/images/spectranet.jpg","glo-sme-data":"assets/images/glo.jpg"};
 
-window.flwNames = {"Airtime Recharge":"Airtime","Mobile Data Service":"Data","Data Services":"Data","Cable Bill Payment":"Cable Bill","TV Subscription":"Cable TV","Electricity Bill":"Electricity","education":"Education","Transport and Logistics":"Transport","insurance":"Insurance","Religious Institutions":"Religious","Schools & Professional Bodies":"Schools","MTN Airtime VTU":"MTN","Airtel Airtime VTU":"Airtel","GLO Airtime VTU":"GLO","9mobile Airtime VTU":"9mobile",
+window.flwNames = {"Airtime Recharge":"Airtime","Mobile Data Service":"Data","Data Services":"Data","Cable Bill Payment":"Cable TV","Cable TV Bundle":"Cable TV","Cable TV Subscription":"Cable TV","TV Subscription":"Cable TV","Electricity Bill":"Electricity","education":"Education","Education":"Education","Transport and Logistics":"Transport","insurance":"Insurance","Religious Institutions":"Religious","Schools & Professional Bodies":"Schools","MTN Airtime VTU":"MTN","Airtel Airtime VTU":"Airtel","GLO Airtime VTU":"GLO","9mobile Airtime VTU":"9mobile",
   "mtn-data":"MTN","glo-data":"GLO","airtel-data":"Airtel","9mobile-data":"9mobile","etisalat-data":"9mobile","smile-direct":"Smile","spectranet":"Spectranet","glo-sme-data":"GLO (SME)"};
 
-window.flwIcons = {"airtime":"smartphone","data":"wifi","tv-subscription":"tv","INTSERVICE":"globe","electricity-bill":"zap","education":"graduation-cap","insurance":"shield-check","TRANSLOG":"truck","DEALPAY":"credit-card","RELINST":"landmark","SCHPB":"graduation-cap",
-  "mtn":"smartphone", //MTN
-  "airtel":"smartphone", //AIRTEL
-  "glo":"smartphone", //GLO
-  "9mobile":"smartphone", //9MOBILE
-  "etisalat":"smartphone"
+window.flwIcons = {"airtime":"smartphone","data":"wifi","tv-subscription":"tv","INTSERVICE":"globe","electricity-bill":"zap","education":"graduation-cap","insurance":"shield-check","TRANSLOG":"truck","DEALPAY":"credit-card","RELINST":"landmark","SCHPB":"graduation-cap","cable":"tv","bundle":"tv","electricity":"zap","waec":"graduation-cap","jamb":"graduation-cap",
+  "mtn":"smartphone","airtel":"smartphone","glo":"smartphone","9mobile":"smartphone","etisalat":"smartphone"
 };
 
 //"airtime":"bg-amber-500","data":"bg-sky-500","tv-subscription":"bg-purple-500","INTSERVICE":"bg-sky-500", "electricity-bill":"bg-indigo-600","TAX":"bg-gray-700","insurance":"bg-emerald-500","education":"bg-blue-500","RELINST":"bg-violet-500","SCHPB":"bg-blue-500",
 
-window.flwColors = {"airtime":"bg-amber-500","data":"bg-indigo-500","tv-subscription":"bg-indigo-500","INTSERVICE":"bg-indigo-500","electricity-bill":"bg-indigo-500","insurance":"bg-indigo-500","education":"bg-indigo-500",
+window.flwColors = {"airtime":"bg-amber-500","data":"bg-indigo-500","tv-subscription":"bg-purple-500","INTSERVICE":"bg-indigo-500","electricity-bill":"bg-yellow-600","insurance":"bg-emerald-500","education":"bg-blue-600","cable":"bg-purple-500","bundle":"bg-purple-500","electricity":"bg-yellow-600","waec":"bg-blue-600","jamb":"bg-blue-600",
   "mtn":"bg-amber-500","mtn-data":"bg-amber-500",
-  "airtel":"bg-red-500","airtel-data":"bg-red-500", //AIRTEL
-  "glo":"bg-green-600","glo-data":"bg-green-600", "glo-sme-data":"bg-green-600", //GLO
-  "9mobile":"bg-lime-600","9mobile-data":"bg-lime-600", //9MOBILE,
-  "etisalat":"bg-lime-500","etisalat-data":"bg-lime-500", 
-  "smile":"bg-indigo-500","spectranet":"bg-indigo-500",
+  "airtel":"bg-red-500","airtel-data":"bg-red-500",
+  "glo":"bg-green-600","glo-data":"bg-green-600","glo-sme-data":"bg-green-600",
+  "9mobile":"bg-lime-600","9mobile-data":"bg-lime-600",
+  "etisalat":"bg-lime-500","etisalat-data":"bg-lime-500",
+  "smile":"bg-indigo-500","spectranet":"bg-indigo-500"
 };
 ////////////////////////
 
