@@ -183,7 +183,7 @@
       if(name === "prephone") { name = "phone"; }
       if (["phone","pin","confirmPin"].includes(name)){
         value = value.replace(/\D/g,"");
-        if (name === "pin" && value.length > 6) return;    
+        if ((name === "pin" || name === "confirmPin") && value.length > 6) return;
       }
       setRegData(r => ({ ...r, [name]: value }));         
     };
