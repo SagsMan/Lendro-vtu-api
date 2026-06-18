@@ -245,7 +245,8 @@ function getAllServices(PDO $db): string
       $catMap = [
           'electricity'=>['name'=>'Electricity Bill',            'identifier'=>'electricity-bill'],
           'cabletv'    =>['name'=>'TV Subscription',             'identifier'=>'tv-subscription'],
-          'cable'      =>['name'=>'Cable Bill Payment',          'identifier'=>'tv-subscription'],
+          'bundle'     =>['name'=>'Cable TV Bundle',               'identifier'=>'tv-subscription'],
+          'cable'      =>['name'=>'Cable TV Subscription',          'identifier'=>'tv-subscription'],
           'education'  =>['name'=>'Education',                   'identifier'=>'education'],
           'insurance'  =>['name'=>'Insurance',                   'identifier'=>'insurance'],
           'transport'  =>['name'=>'Transport and Logistics',     'identifier'=>'TRANSLOG'],
