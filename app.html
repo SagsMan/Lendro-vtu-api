@@ -166,9 +166,10 @@
 
               if (page === "loan") setLoanData(res.data);
               if (page === "services"){
-                if(res.data?.services){
-                  setServicesData(res.data?.services || getStorage("lendro.services"));
-                  saveStorage("lendro.services",res.data?.services,{merge:true});
+                const svcData = res.data?.services || res.data;
+                if(svcData?.categories || svcData?.airtime){
+                  setServicesData(svcData);
+                  saveStorage("lendro.services", svcData, {merge:true});
                 }
               }
               if (page === "contest") setContestData(res.data?.leaderboard || []);
