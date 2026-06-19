@@ -229,7 +229,14 @@ function timeAgo(string $datetime): string
  */
 function getAllServices(PDO $db): string
   {
-      $stmt = $db->prepare('SELECT * FROM services WHERE status = 1 ORDER BY type ASC, network ASC, price ASC');
+      $stmt = $db->prepare(
+            'SELECT * FROM services
+              WHERE status = 1
+                AND id IN (
+                  SELECT DISTINCT service_id FROM provider_services WHERE status = 1
+                )
+              ORDER BY type ASC, network ASC, price ASC'
+        );
       $stmt->execute();
       $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -343,7 +350,7 @@ function getProviderId(string $slug, PDO $db): int
         global $db;
         $dbNetwork = $network;
         if ($network && str_ends_with($network, '-data')) $dbNetwork = substr($network, 0, -5);
-        $sql = 'SELECT * FROM services WHERE status = 1';
+        $sql = 'SELECT * FROM services WHERE status = 1 AND id IN (SELECT DISTINCT service_id FROM provider_services WHERE status = 1)';
         $params = [];
         if ($type)      { $sql .= ' AND type = ?';           $params[] = $type; }
         if ($dbNetwork) { $sql .= ' AND LOWER(network) = ?'; $params[] = strtolower($dbNetwork); }
