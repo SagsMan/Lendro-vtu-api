@@ -24,7 +24,7 @@
     $dbNetwork = $network;
     if ($network && str_ends_with($network, '-data')) $dbNetwork = substr($network, 0, -5);
 
-    $sql    = "SELECT * FROM services WHERE status = 1 AND type = ?";
+    $sql    = "SELECT * FROM services WHERE status = 1 AND type = ? AND id IN (SELECT DISTINCT service_id FROM provider_services WHERE status = 1)";
     $params = [$type];
 
     if ($dbNetwork) {
