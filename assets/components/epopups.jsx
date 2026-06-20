@@ -119,6 +119,9 @@ const PopUpModal = ({ popupOpen, setPopupOpen, onClose, onSubmit, wallet, servic
       // Buy Data (triggered from PageItems item click)
       ((data?.dwat === "buydata") && e(billerForm, {data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions})),
 
+      // KYC / Generate Virtual Account
+      ((data?.dwat === "kyc") && e(kycForm, {data,setBusy,setPopupOpen})),
+
     )
   );
 };
@@ -255,3 +258,187 @@ const depositForm = ({data,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOp
     ),
   )
 }
+
+// KYC / Generate Virtual Account form
+// User MUST provide NIN (11 digits) OR BVN (11 digits) — or both.
+// After successful verification, SquadCo auto-creates a permanent virtual account.
+const kycForm = ({data, setBusy, setPopupOpen}) => {
+  const [nin,       setNin]       = useState("");
+  const [bvn,       setBvn]       = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName,  setLastName]  = useState("");
+  const [dob,       setDob]       = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [result,    setResult]    = useState(null); // holds success response
+  const [errMsg,    setErrMsg]    = useState("");
+
+  const isNinValid = nin.length === 11 && /^\d{11}$/.test(nin);
+  const isBvnValid = bvn.length === 11 && /^\d{11}$/.test(bvn);
+  const canSubmit  = isNinValid || isBvnValid;
+
+  const handleSubmit = async () => {
+    setErrMsg("");
+    if (!canSubmit) {
+      setErrMsg("Please enter a valid 11-digit NIN or BVN before continuing.");
+      return;
+    }
+    setLoading(true);
+    setBusy(true);
+    try {
+      const body = {};
+      if (nin)       body.nin        = nin;
+      if (bvn)       body.bvn        = bvn;
+      if (firstName) body.first_name = firstName;
+      if (lastName)  body.last_name  = lastName;
+      if (dob)       body.dob        = dob;
+
+      const res = await apiFetch("/auth/kyc.php", body);
+
+      if (res?.status === "success") {
+        // Save kyc verified state locally so wallet page can reflect it
+        saveStorage("lendro.kyc_status", "verified");
+        if (res?.virtual_account?.account_number) {
+          saveStorage("lendro.virtual_account", res.virtual_account);
+        }
+        setResult(res);
+      } else if (res?.status === "already_verified") {
+        setErrMsg("Your identity has already been verified.");
+        setResult({ status:"success", message: res.message, virtual_account: null });
+      } else {
+        setErrMsg(res?.message || "Verification failed. Please check your details and try again.");
+      }
+    } catch (err) {
+      setErrMsg("Network error. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+      setBusy(false);
+    }
+  };
+
+  // ── Success screen ────────────────────────────────────────────────────────
+  if (result?.status === "success" && result?.virtual_account?.account_number) {
+    const va = result.virtual_account;
+    return e("div", {className:"space-y-4"},
+      e("div", {className:"flex flex-col items-center gap-2 mb-2"},
+        e("div", {className:"w-14 h-14 rounded-full bg-green-100 flex items-center justify-center"},
+          e("i", {"data-lucide":"check-circle-2", className:"w-8 h-8 text-green-600"})
+        ),
+        e("h3", {className:"text-lg font-bold text-gray-900"}, "Identity Verified!"),
+        e("p",  {className:"text-sm text-gray-500 text-center"}, "Your virtual account has been created. Use it to fund your wallet by bank transfer.")
+      ),
+      e("div", {className:"bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3"},
+        e("p", {className:"text-xs text-gray-500 uppercase tracking-wide font-semibold"}, "Virtual Account Details"),
+        e("div", {className:"flex justify-between items-center"},
+          e("span", {className:"text-sm text-gray-600"}, "Bank"),
+          e("span", {className:"font-semibold text-gray-900"}, va.bank_name || "GTBank")
+        ),
+        e("div", {className:"flex justify-between items-center"},
+          e("span", {className:"text-sm text-gray-600"}, "Account Number"),
+          e("span", {className:"font-bold text-xl text-indigo-700 tracking-widest"}, va.account_number)
+        ),
+        va.account_name && e("div", {className:"flex justify-between items-center"},
+          e("span", {className:"text-sm text-gray-600"}, "Account Name"),
+          e("span", {className:"font-semibold text-gray-900"}, va.account_name)
+        ),
+      ),
+      e("p", {className:"text-xs text-gray-400 text-center"}, "Transfers to this account credit your Lendro wallet instantly."),
+      e("button", {
+        className:"w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold mt-2",
+        onClick: ()=>setPopupOpen({open:false,data:{}})
+      }, "Done")
+    );
+  }
+
+  // ── KYC form ──────────────────────────────────────────────────────────────
+  return e("div", {className:"space-y-4"},
+
+    e("div", {className:"flex flex-col items-center gap-1 mb-2"},
+      e("div", {className:"w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center"},
+        e("i", {"data-lucide":"shield-check", className:"w-7 h-7 text-indigo-600"})
+      ),
+      e("h3", {className:"text-lg font-bold text-gray-900"}, "Verify Your Identity"),
+      e("p",  {className:"text-sm text-gray-500 text-center"},
+        "Enter your NIN or BVN to verify your identity and generate a personal bank account for instant wallet funding."
+      )
+    ),
+
+    // NIN field
+    e("div", {className:"space-y-1"},
+      e("label", {className:"text-sm font-medium text-gray-700"}, "NIN (National Identification Number)"),
+      e("input", {
+        type:"tel", maxLength:11, placeholder:"Enter your 11-digit NIN",
+        className:`w-full px-3 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 ${nin && !isNinValid ? "border-red-400" : "border-gray-300"}`,
+        value: nin,
+        onChange: ev => setNin(ev.target.value.replace(/\D/g,"").slice(0,11))
+      }),
+      nin && !isNinValid && e("p", {className:"text-xs text-red-500"}, "NIN must be exactly 11 digits."),
+      isNinValid   && e("p", {className:"text-xs text-green-600"}, "✓ NIN looks good.")
+    ),
+
+    // BVN field
+    e("div", {className:"space-y-1"},
+      e("label", {className:"text-sm font-medium text-gray-700"}, "BVN (Bank Verification Number)"),
+      e("input", {
+        type:"tel", maxLength:11, placeholder:"Enter your 11-digit BVN",
+        className:`w-full px-3 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 ${bvn && !isBvnValid ? "border-red-400" : "border-gray-300"}`,
+        value: bvn,
+        onChange: ev => setBvn(ev.target.value.replace(/\D/g,"").slice(0,11))
+      }),
+      bvn && !isBvnValid && e("p", {className:"text-xs text-red-500"}, "BVN must be exactly 11 digits."),
+      isBvnValid   && e("p", {className:"text-xs text-green-600"}, "✓ BVN looks good.")
+    ),
+
+    // Optional fields — First Name, Last Name, Date of Birth
+    e("details", {className:"group"},
+      e("summary", {className:"cursor-pointer text-sm text-indigo-600 font-medium list-none flex items-center gap-1"},
+        e("i", {"data-lucide":"chevron-right", className:"w-4 h-4 group-open:rotate-90 transition-transform"}),
+        "Add personal details (optional but recommended)"
+      ),
+      e("div", {className:"mt-3 space-y-3"},
+        e("div", {className:"flex gap-2"},
+          e("div", {className:"flex-1 space-y-1"},
+            e("label", {className:"text-xs font-medium text-gray-600"}, "First Name"),
+            e("input", {type:"text", placeholder:"e.g. Sagiru",
+              className:"w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm",
+              value: firstName, onChange: ev => setFirstName(ev.target.value)})
+          ),
+          e("div", {className:"flex-1 space-y-1"},
+            e("label", {className:"text-xs font-medium text-gray-600"}, "Last Name"),
+            e("input", {type:"text", placeholder:"e.g. Garba",
+              className:"w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm",
+              value: lastName, onChange: ev => setLastName(ev.target.value)})
+          )
+        ),
+        e("div", {className:"space-y-1"},
+          e("label", {className:"text-xs font-medium text-gray-600"}, "Date of Birth"),
+          e("input", {type:"date",
+            className:"w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm",
+            value: dob, onChange: ev => setDob(ev.target.value)})
+        )
+      )
+    ),
+
+    // Validation error message
+    errMsg && e("div", {className:"bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3"},
+      e("i", {"data-lucide":"alert-circle", className:"inline w-4 h-4 mr-1"}),
+      errMsg
+    ),
+
+    // Info note
+    e("p", {className:"text-xs text-gray-400"},
+      "Your details are encrypted and used only for identity verification. We do not share them with third parties."
+    ),
+
+    // Submit button — disabled until NIN or BVN is valid
+    e("button", {
+      type:"button",
+      disabled: !canSubmit || loading,
+      className:`w-full py-3 rounded-xl font-semibold transition ${
+        canSubmit && !loading
+          ? "bg-indigo-600 hover:bg-indigo-500 text-white active:scale-95"
+          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+      }`,
+      onClick: handleSubmit
+    }, loading ? "Verifying…" : "Verify & Generate Account")
+  );
+};
