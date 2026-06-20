@@ -12,8 +12,7 @@
  *
  * The background worker (workers/process_transactions.php) picks up pending
  * queue items, calls providers, and updates transaction status.
- * If all providers fail it refunds the wallet.
- * If a provider is pending, the reconciliation worker follows up later.
+ * If all providers fail it refunds the wallet automatically.
  */
 require_once __DIR__ . '/ServiceManager.php';
 require_once __DIR__ . '/IdempotencyService.php';
@@ -24,23 +23,30 @@ class TransactionService
     /**
      * Initiate a purchase — debit wallet, create transaction, push to queue.
      *
-     * @param  int    $userid         authenticated user's ID
-     * @param  int    $serviceId      internal service ID from the services table
-     * @param  string $phone          recipient's phone number
-     * @param  string $idempotencyKey client-generated unique key to prevent duplicates
+     * @param  int    $userid           authenticated user's ID
+     * @param  int    $serviceId        internal service ID from the services table
+     * @param  string $phone            recipient's phone number
+     * @param  string $idempotencyKey   client-generated UUID to prevent duplicate orders
      * @param  PDO    $db
+     * @param  float  $customAmount     optional — used for flexible-price services like airtime
      * @return array  JSON-ready response array
      */
-    public static function process(int $userid, int $serviceId, string $phone, string $idempotencyKey, PDO $db): array
-    {
-        // Generate a human-friendly reference number we'll use throughout the system
+    public static function process(
+        int    $userid,
+        int    $serviceId,
+        string $phone,
+        string $idempotencyKey,
+        PDO    $db,
+        float  $customAmount = 0
+    ): array {
+        // Generate a human-friendly reference number used throughout the system
         $reference = generateRefNo('LDR');
 
         try {
             $db->beginTransaction();
 
             // ── Step 1: Idempotency check ────────────────────────────────────
-            // If this key was used before, return the stored result immediately
+            // If this exact request was already processed, return the original result
             $requestHash = hash('sha256', json_encode([$userid, $serviceId, $phone]));
             $existing    = IdempotencyService::validate($idempotencyKey, $requestHash, $db);
 
@@ -57,16 +63,32 @@ class TransactionService
 
             // ── Step 2: Load service ─────────────────────────────────────────
             $service = ServiceManager::getService($serviceId, $db);
-            $amount  = (float) $service['price'];
 
-            // Airtime is flexible-amount — the user sends the amount in the request
-            // For now we use the stored price; extend here if you support custom amounts
-            if ($amount <= 0) {
-                throw new Exception('This service does not have a fixed price. Please contact support.');
+            // Determine the amount to charge.
+            // Fixed-price services (data, electricity, cable): use the stored price.
+            // Flexible-price services (airtime): use the caller-supplied amount.
+            $storedPrice = isset($service['price']) ? (float) $service['price'] : 0;
+
+            if ($storedPrice > 0) {
+                // Fixed price — ignore any custom amount passed by the client
+                $amount = $storedPrice;
+            } elseif ($customAmount > 0) {
+                // Flexible price (e.g. airtime) — validate the custom amount
+                if ($customAmount < 50) {
+                    throw new Exception('Minimum purchase amount is ₦50.');
+                }
+                if ($customAmount > 500000) {
+                    throw new Exception('Maximum single purchase amount is ₦500,000.');
+                }
+                $amount = $customAmount;
+            } else {
+                throw new Exception(
+                    'This service requires a purchase amount. Please enter an amount and try again.'
+                );
             }
 
-            // ── Step 3: Lock and debit wallet ────────────────────────────────
-            // FOR UPDATE locks the row so concurrent requests can't race
+            // ── Step 3: Lock wallet and check balance ────────────────────────
+            // FOR UPDATE locks the row so concurrent requests cannot race
             $stmt = $db->prepare('SELECT * FROM wallets WHERE userid = ? FOR UPDATE');
             $stmt->execute([$userid]);
             $wallet = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -86,11 +108,16 @@ class TransactionService
 
             $balanceAfter = $balanceBefore - $amount;
 
+            // ── Step 4: Debit the wallet ─────────────────────────────────────
             $stmt = $db->prepare('UPDATE wallets SET balance = ?, updated_at = NOW() WHERE userid = ?');
             $stmt->execute([$balanceAfter, $userid]);
 
-            // ── Step 4: Log the wallet debit ─────────────────────────────────
-            logWalletEvent($db, $userid, 'debit', $amount, $balanceBefore, $balanceAfter, $reference, "Purchase: {$service['name']}");
+            // Log the wallet movement for audit trail
+            logWalletEvent(
+                $db, $userid, 'debit', $amount,
+                $balanceBefore, $balanceAfter,
+                $reference, "Purchase: {$service['name']}"
+            );
 
             // ── Step 5: Create a PENDING transaction record ──────────────────
             $stmt = $db->prepare(
@@ -116,14 +143,14 @@ class TransactionService
             );
             $stmt->execute([$transactionId]);
 
-            // Commit everything — wallet is debited, tx is logged, job is queued
+            // Commit — wallet is debited, tx logged, job is queued
             $db->commit();
 
             return [
                 'status'    => 'processing',
                 'reference' => $reference,
                 'amount'    => $amount,
-                'message'   => 'Your request has been received and is being processed.',
+                'message'   => 'Your request has been received and is being processed. You will be notified shortly.',
             ];
 
         } catch (Exception $e) {
@@ -162,15 +189,15 @@ class TransactionService
         }
 
         return [
-            'status'        => 'success',
-            'reference'     => $tx['refno'],
-            'tx_status'     => $tx['status'],
-            'amount'        => (float) $tx['amount'],
-            'phone'         => $tx['phone'],
-            'service'       => $tx['transtitle'],
-            'provider'      => $tx['provider_name'],
-            'created_at'    => $tx['created_at'],
-            'updated_at'    => $tx['updated_at'],
+            'status'     => 'success',
+            'reference'  => $tx['refno'],
+            'tx_status'  => $tx['status'],
+            'amount'     => (float) $tx['amount'],
+            'phone'      => $tx['phone'],
+            'service'    => $tx['transtitle'],
+            'provider'   => $tx['provider_name'],
+            'created_at' => $tx['created_at'],
+            'updated_at' => $tx['updated_at'],
         ];
     }
 }
