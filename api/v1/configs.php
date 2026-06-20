@@ -1,59 +1,67 @@
 <?php
-  /**
-   * Lendro VTU API — Global Configuration
-   */
+/**
+ * Lendro VTU API — Global Configuration
+ */
 
-  // ── CORS headers ─────────────────────────────────────────────────────────────
-  header("Content-Type: application/json");
-  header("Access-Control-Allow-Origin: *");
-  header("Access-Control-Allow-Credentials: true");
-  header("Access-Control-Allow-Headers: Content-Type, X-Idempotency-Key");
-  header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+// ── CORS headers ─────────────────────────────────────────────────────────────
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, X-Idempotency-Key, Authorization");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 
-  if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-      http_response_code(200);
-      exit;
-  }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
-  // ── Service markup ────────────────────────────────────────────────────────────
-define('MARKUP_1K',20); //N20
-define('MARKUP_25K',50); //N100
-define('MARKUP_MAX',100); //5%,10%
-define('MARKUP_STEP',10); //airtime: N10, data: N50, cable/others: N100
+// ── Service markup ────────────────────────────────────────────────────────────
+define('MARKUP', 0.15);         // 15% markup on provider cost price
 
-  // ── App base URL ──────────────────────────────────────────────────────────────
-  define('BASE_URL', 'https://lendro.trackd.live');
-  define('BASE_DIR', __DIR__);
+// ── App base URL ──────────────────────────────────────────────────────────────
+define('BASE_URL', 'https://lendro.trackd.live');
+define('BASE_DIR', __DIR__);
 
-  // ── Active provider slugs ─────────────────────────────────────────────────────
-  const PROVIDER_SLUGS = ['cheapdatahub', 'connectbridge'];
+// ── Active provider slugs ─────────────────────────────────────────────────────
+const PROVIDER_SLUGS = ['cheapdatahub', 'connectbridge'];
 
-  // ── Database credentials ──────────────────────────────────────────────────────
-  $host     = 'localhost';
-  $dbname   = 'tracsmda_lendro';
-  $username = 'tracsmda_lendro1';
-  $password = 'LendroDb2024!';
+// ── Database credentials ──────────────────────────────────────────────────────
+$host     = 'localhost';
+$dbname   = 'tracsmda_lendro';
+$username = 'tracsmda_lendrou';
+$password = 'Lendro@Secure2024';
 
-  // ── Payment gateway (Squad — for wallet top-ups) ──────────────────────────────
-  $squard_SK       = getenv('SQUAD_SK')       ?: 'sandbox_sk_xxxxxxxxxxxxxxx';
-  $squard_PK       = getenv('SQUAD_PK')       ?: 'sandbox_pk_xxxxxxxxxxxxxxx';
-  $squard_Endpoint = getenv('SQUAD_ENDPOINT') ?: 'https://sandbox-api-d.squadco.com';
-  $squard_Merchant = getenv('SQUAD_MERCHANT') ?: 'SBX2EMWXDF';
+// ── Payment gateway (Squad — for wallet top-ups) ──────────────────────────────
+//
+// Set these as environment variables in cPanel (Software > Setup PHP INI or
+// .htaccess SetEnv) to switch between sandbox and live.
+//
+// Live:    SQUAD_ENDPOINT = https://api-d.squadco.com
+//          SQUAD_SK       = sk_live_xxxx  (from Squad dashboard)
+//          SQUAD_PK       = pk_live_xxxx
+//          SQUAD_MERCHANT = your_merchant_id
+//
+// Sandbox: SQUAD_ENDPOINT = https://sandbox-api-d.squadco.com
+//          SQUAD_SK       = sandbox_sk_xxxx
+//
+$squard_SK       = getenv('SQUAD_SK')       ?: '';
+$squard_PK       = getenv('SQUAD_PK')       ?: '';
+$squard_Endpoint = getenv('SQUAD_ENDPOINT') ?: 'https://api-d.squadco.com';  // default LIVE
+$squard_Merchant = getenv('SQUAD_MERCHANT') ?: '';
 
-  // ── VTPass (alternative bill-payment gateway) ─────────────────────────────────
-  $G_PKEY     = getenv('VTPASS_PK')     ?: 'PK_xxxxxxxxxxxxxxx';
-  $G_SKEY     = getenv('VTPASS_SK')     ?: 'SK_xxxxxxxxxxxxxxx';
-  $G_APIKEY   = getenv('VTPASS_APIKEY') ?: 'xxxxxxxxxxxxxxx';
-  $G_Endpoint = getenv('VTPASS_URL')    ?: 'https://sandbox.vtpass.com/api';
+// Alias used in deposit.php
+$squad_SecretKey = $squard_SK;
 
-  // ── Deposit / withdrawal fee ─────────────────────────────────────────────────
-  $DWFee = 0.03; // 3% on deposit and withdrawal
+// ── Deposit / withdrawal fee (percentage, e.g. 0.015 = 1.5%) ─────────────────
+$DWFee = 0.015;
 
-  // ── Squad secret key alias (used in deposit.php, kyc.php) ────────────────────
-  $squad_SecretKey = $squard_SK;
+// ── VTPass (alternative bill-payment gateway) ─────────────────────────────────
+$G_PKEY     = getenv('VTPASS_PK')     ?: '';
+$G_SKEY     = getenv('VTPASS_SK')     ?: '';
+$G_APIKEY   = getenv('VTPASS_APIKEY') ?: '';
+$G_Endpoint = getenv('VTPASS_URL')    ?: 'https://vtpass.com/api';
 
-  // ── Misc app settings ─────────────────────────────────────────────────────────
-  $CurrencySymbol     = '₦';
-  $CacheExpiryinHrs   = 96;
-  $UPointPerPurchase  = 3;
-  
+// ── Misc app settings ─────────────────────────────────────────────────────────
+$CurrencySymbol    = '₦';
+$CacheExpiryinHrs  = 96;
+$UPointPerPurchase = 3;
