@@ -9,7 +9,7 @@
  * Run this once a day (or every few hours) to keep your catalogue fresh.
  *
  * Cron schedule example (runs every 6 hours):
- *   0 */6 * * * php /var/www/html/api/v1/cronjob/populate-services.php >> /var/log/lendro-sync.log 2>&1
+ *   0 * /6 * * * php /var/www/html/api/v1/cronjob/populate-services.php >> /var/log/lendro-sync.log 2>&1
  *
  * You can also trigger it manually:
  *   php api/v1/cronjob/populate-services.php
