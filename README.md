@@ -1,432 +1,420 @@
 # Lendro VTU App
 
-**Lendro** is a Nigerian Virtual Top-Up (VTU) platform that lets users buy airtime, data bundles, and pay bills using a personal wallet. The app is powered by two independent VTU providers (CheapDataHub and ConnectBridge), uses SquadCo for card deposits, and generates personal bank accounts for wallet funding via KYC identity verification.
+Mobile-first PHP + React web app for Nigerian VTU (Virtual Top-Up) services. Users buy Airtime, Data, Cable TV, Electricity tokens, and Exam PINs using a pre-funded wallet.
 
-Live URL: **https://lendro.trackd.live**  
-GitHub: **https://github.com/SagsMan/Lendro-vtu-api**
-
----
-
-## Table of Contents
-
-1. [Tech Stack](#tech-stack)
-2. [Project Structure](#project-structure)
-3. [Database Schema](#database-schema)
-4. [Provider Architecture](#provider-architecture)
-5. [Provider Proof (Both Loaded in DB)](#provider-proof-both-loaded-in-db)
-6. [KYC & Virtual Account Flow](#kyc--virtual-account-flow)
-7. [Cron Job / Background Worker](#cron-job--background-worker)
-8. [API Reference](#api-reference)
-9. [Deployment & cPanel Setup](#deployment--cpanel-setup)
-10. [Environment & Configuration](#environment--configuration)
-11. [Contact](#contact)
+**Live URL:** https://lendro.trackd.live  
+**GitHub:** https://github.com/SagsMan/Lendro-vtu-api
 
 ---
 
-## Tech Stack
+## Stack
 
-| Layer          | Technology                                              |
-|----------------|---------------------------------------------------------|
-| Backend        | PHP 7.4, MariaDB 10.x                                   |
-| Frontend       | Vanilla React 18 (CDN, no build step), Tailwind CSS CDN |
-| ORM / Queries  | Raw PDO with prepared statements                        |
-| Payment / Card | SquadCo (card deposits & virtual accounts)              |
-| Hosting        | cPanel shared hosting — server304.web-hosting.com       |
-| Icons          | Lucide (CDN)                                            |
+| Layer | Technology |
+|---|---|
+| Backend | PHP 8+ (no framework) |
+| Frontend | React (no bundler — `React.createElement` via CDN) |
+| Database | MySQL (cPanel) |
+| Payments | SquadCo (wallet funding) |
+| VTU Provider A | CheapDataHub — airtime, data, electricity, cable, education |
+| VTU Provider B | ConnectBridge — airtime, data, cable, electricity, education |
 
 ---
 
-## Project Structure
+## Architecture
 
 ```
-/
-├── index.html                          ← Login / Register page
-├── app.html                            ← Main dashboard SPA shell
+lendro/
+├── app.html                        # Single-page app shell (loads all JS components)
 ├── assets/
-│   └── components/
-│       ├── ehelper.jsx                 ← Shared JS helpers (apiFetch, storage, formatCurrency, etc.)
-│       ├── ehome.jsx                   ← Home page component
-│       ├── eheader.jsx                 ← App header / top nav
-│       ├── efooter.jsx                 ← Bottom navigation bar
-│       ├── epopups.jsx                 ← All bottom-sheet popups: Deposit, Buy Airtime/Data, KYC
-│       ├── eservices.jsx               ← Services page (airtime networks, data, bill categories)
-│       ├── ewallet.jsx                 ← Wallet page (balance, deposit, withdraw, virtual account CTA)
-│       ├── ewcfund.jsx                 ← Wallet fund page
-│       ├── etransactions.jsx           ← Transaction history component
-│       ├── enotifications.jsx          ← In-app notifications
-│       ├── esidemenus.jsx              ← Side menu / drawer
-│       ├── escores-breakdown.jsx       ← Credit score breakdown modal
-│       └── eabout.jsx                  ← About page
-├── api/
-│   └── v1/
-│       ├── configs.php                 ← DB credentials, API keys, markup rates
-│       ├── db.php                      ← PDO singleton connection
-│       ├── TransactionService.php      ← Wallet debit + async queue push
-│       ├── TransactionService_Sync.php ← Synchronous (immediate) transaction flow
-│       ├── ServiceManager.php          ← Service catalogue queries
-│       ├── IdempotencyService.php      ← Prevents duplicate purchases
-│       ├── ProviderFactory.php         ← Builds correct provider instance by slug
-│       ├── ProviderInterface.php       ← Contract every provider must implement
-│       ├── Normalizer.php              ← Maps raw provider responses to internal format
-│       ├── ProviderResponseNormalizer.php
-│       ├── auth/
-│       │   ├── login.php               ← POST /auth/login (phone + PIN)
-│       │   ├── register.php            ← POST /auth/register
-│       │   ├── logout.php              ← POST /auth/logout
-│       │   ├── kyc.php                 ← POST /auth/kyc (BVN/NIN verification + virtual account)
-│       │   ├── forgot-pwd.php          ← PIN reset request
-│       │   └── auth.php                ← Session guard (included by protected endpoints)
-│       ├── accounts/
-│       │   ├── home.php                ← GET /accounts/home (dashboard: wallet, txns, leaderboard)
-│       │   ├── deposit.php             ← POST /accounts/deposit (initiate & verify SquadCo deposit)
-│       │   └── leaderboard.php         ← GET /accounts/leaderboard
-│       ├── client/
-│       │   ├── services.php            ← GET /client/services (all categories, airtime, data)
-│       │   ├── show.php                ← GET /client/show (data plans by network)
-│       │   ├── order.php               ← POST /client/order (buy airtime or data)
-│       │   ├── status.php              ← GET /client/status (check order status)
-│       │   ├── transactions.php        ← GET /client/transactions
-│       │   └── wallet.php              ← GET /client/wallet
-│       ├── providers/
-│       │   ├── BaseProvider.php        ← Shared HTTP + retry logic
-│       │   ├── ProviderA.php           ← CheapDataHub integration
-│       │   ├── ProviderB.php           ← ConnectBridge integration
-│       │   └── ProviderProductsA.php   ← CheapDataHub product sync helper
-│       ├── helpers/
-│       │   ├── helpers.php             ← Utility functions (phone normalise, currency, etc.)
-│       │   ├── fxn-general.php         ← General shared functions
-│       │   └── QueueHelper.php         ← Push jobs to transaction_queue
-│       ├── cronjob/
-│       │   ├── populate-services.php   ← Seed provider products into DB
-│       │   ├── sync_provider_services.php ← Re-sync live prices from providers
-│       │   └── reconcile_transactions.php ← Fix stuck/pending orders
-│       ├── webhooks/
-│       │   └── provider.php            ← Receives SquadCo & provider callbacks
-│       └── workers/
-│           └── process_transactions.php ← Background worker (processes transaction_queue)
-├── dbmlendro.sql                       ← Full DB schema + seed data
+│   ├── components/
+│   │   ├── ehelper.jsx             # Global config: icons, colours, categoryBillers, categoryTitles
+│   │   ├── ehome.jsx               # Home page component
+│   │   ├── eservices.jsx           # Partner Services page + ServicesOnHome widget
+│   │   ├── epopups.jsx             # All purchase forms + Buy() function + wallet auto-refresh
+│   │   └── ...
+│   └── images/                     # Network logos (mtn.jpg, airtel.jpg, glo.jpg, 9mobile.jpg …)
+└── api/v1/
+    ├── configs.php                 # DB credentials, markup constants
+    ├── db.php                      # PDO singleton + session start + helpers include
+    ├── helpers/helpers.php         # getAllServices(), requireAuth(), generateRefNo() …
+    ├── providers/
+    │   ├── BaseProvider.php        # HTTP request() + auth handling (Bearer / Token)
+    │   ├── ProviderA.php           # CheapDataHub integration
+    │   ├── ProviderB.php           # ConnectBridge integration
+    │   ├── ProviderProductsA.php   # Static CheapDataHub product catalogue
+    │   └── ProviderResponseNormalizer.php
+    ├── client/
+    │   ├── order.php               # POST /api/v1/client/order  — place purchase
+    │   ├── wallet.php              # GET  /api/v1/client/wallet — balance + transactions
+    │   ├── verify.php              # POST /api/v1/client/verify — smart card / meter lookup
+    │   ├── show.php                # GET  /api/v1/client/show   — data plan list for a network
+    │   └── services.php            # GET  /api/v1/client/services — all grouped services
+    ├── services/index.php          # Alias for client/services (used by frontend)
+    ├── TransactionService.php      # Wallet debit + provider dispatch + DB write
+    └── workers/                    # Background job that actually calls provider APIs
 ```
 
 ---
 
-## Database Schema
+## Provider A — CheapDataHub
 
-| Table                | Purpose                                                         |
-|----------------------|-----------------------------------------------------------------|
-| `users`              | User accounts (id, name, phone, email, pin_hash, referral)     |
-| `wallets`            | Naira balance + bonus bucket per user                           |
-| `wallet_logs`        | Debit/credit audit trail with running balance                   |
-| `providers`          | VTU provider config (slug, endpoint, key, status)              |
-| `services`           | Normalised service catalogue (name, type, network, price)       |
-| `provider_services`  | Maps internal service IDs → provider product codes + prices     |
-| `transactions`       | Every purchase attempt with status history                      |
-| `transaction_queue`  | Async job queue for the background worker                       |
-| `provider_callbacks` | Raw webhook payloads from providers                             |
-| `user_kyc`           | KYC submissions (NIN, BVN hash, verification status, timestamp)|
-| `virtual_accounts`   | SquadCo virtual account numbers per verified user              |
-| `notifications`      | In-app notification messages per user                           |
-| `apicache`           | Cached provider product lists (TTL-based)                       |
-| `commissions`        | Per-transaction profit tracking                                 |
+**Base URL:** configured in `ProviderProductsA.php`  
+**Auth:** `apikey` field in request body
 
-Full schema: `dbmlendro.sql`
+### Airtime Purchase
 
----
-
-## Provider Architecture
-
-Lendro uses a **ProviderFactory** pattern. At order time, `ProviderFactory::build($slug)` loads the correct driver:
-
-```
-Order → client/order.php
-           └─ ServiceManager: resolve service → provider_services row
-           └─ ProviderFactory::build($providerSlug)
-                 ├─ ProviderA (CheapDataHub)   if slug = "cheapdatahub"
-                 └─ ProviderB (ConnectBridge)  if slug = "connectbridge"
-           └─ $provider->purchase(...)
-           └─ Normalizer: map response → internal status
-           └─ TransactionService: write result + credit/debit wallet
-```
-
-Both providers implement the same `ProviderInterface`:
-
-```php
-interface ProviderInterface {
-    public function purchase(array $params): array;
-    public function checkStatus(string $ref): array;
-    public function getProducts(): array;
-}
-```
-
-There is **no fallback chain**. Each service row in `provider_services` is statically mapped to a specific provider. If a service is mapped to CheapDataHub it always goes to CheapDataHub; if mapped to ConnectBridge it always goes to ConnectBridge. Providers are independent — not primary/fallback.
-
----
-
-## Provider Proof (Both Loaded in DB)
-
-The following is live DB evidence that both providers are present and active. Queried from `https://lendro.trackd.live/dbprobe2.php` on **2025-06-20**:
-
+**Request** `POST /airtime/purchase/`
 ```json
 {
-  "providers": [
-    { "id": "1", "name": "CheapDataHub",  "slug": "cheapdatahub",  "status": "1" },
-    { "id": "2", "name": "ConnectBridge", "slug": "connectbridge", "status": "1" }
-  ],
-  "provider_service_counts": [
-    { "id": "1", "name": "CheapDataHub",  "routes": "61" },
-    { "id": "2", "name": "ConnectBridge", "routes": "0"  }
-  ]
+  "apikey":       "<CHEAPDATAHUB_KEY>",
+  "provider_id":  "mtn",
+  "phone_number": "08012345678",
+  "amount":       500,
+  "request_id":   "LDR-1718400000-abc123"
 }
 ```
 
-**What this means:**
-
-| Provider      | DB Status | Routes (provider_services) | Notes                                             |
-|---------------|-----------|----------------------------|---------------------------------------------------|
-| CheapDataHub  | ✅ Active | 61                         | Fully seeded — handles all current orders         |
-| ConnectBridge | ✅ Active | 0 (pending sync)           | Registered and enabled; product sync runs via cronjob |
-
-ConnectBridge has 0 routes because `sync_provider_services.php` has not yet been triggered for that provider. Both providers are independently registered in the DB with `status = 1`. Neither is a "fallback" — they are parallel routes.
-
-To run the provider sync manually:
-
-```
-curl "https://lendro.trackd.live/api/v1/cronjob/sync_provider_services.php?secret=YOURCRONKEY&provider=connectbridge"
-```
-
----
-
-## KYC & Virtual Account Flow
-
-Before a user can use the **"Generate Wallet"** feature (get a personal bank account number), they must complete identity verification. This is enforced on both the frontend and backend.
-
-### Why KYC is required
-
-SquadCo requires a verified customer identity (BVN or NIN) before issuing a permanent virtual account. Without KYC, the account cannot be created. This also reduces fraud risk.
-
-### Frontend gate (ewallet.jsx + epopups.jsx)
-
-1. When the user opens the **Wallet** tab, the page checks `localStorage["lendro.kyc_status"]`.
-2. If status is not `"verified"`, a **"Get Your Virtual Bank Account"** card is shown with a **"Generate Wallet"** button.
-3. Clicking the button opens the KYC bottom sheet popup (`dwat: "kyc"`).
-4. The popup (in `epopups.jsx → kycForm`) renders a form with:
-   - **NIN** (National Identification Number) — 11-digit numeric field (validated client-side)
-   - **BVN** (Bank Verification Number) — 11-digit numeric field (validated client-side)
-   - Optional: First Name, Last Name, Date of Birth (hidden under a collapsible section)
-5. The **"Verify & Generate Account"** button is **disabled** until at least one of NIN or BVN passes the 11-digit validation.
-6. On submit, `apiFetch("/auth/kyc.php", body)` is called.
-7. On success, the virtual account details (bank name, account number, account name) are:
-   - Saved to `localStorage["lendro.virtual_account"]`
-   - Displayed in a success screen inside the popup
-8. After the popup closes, the Wallet page now shows the **Virtual Account card** instead of the CTA.
-
-### Backend (api/v1/auth/kyc.php)
-
-```
-POST /api/v1/auth/kyc.php
-Body: { nin?, bvn?, first_name?, last_name?, dob? }
-
-Validates:
-  1. User session required
-  2. At least one of: nin (11-digit) or bvn (11-digit) must be present
-  3. nin / bvn pass LUHN / format check
-
-Steps:
-  1. Check user_kyc table — if already verified, return status:"already_verified"
-  2. Hash + store KYC data in user_kyc
-  3. Fetch user name, email, phone from users table (column: `name`)
-  4. Call SquadCo dynamic virtual account API
-  5. Store result in virtual_accounts table
-  6. Return virtual account details to client
-
-Response (success):
-  {
-    "status": "success",
-    "message": "Identity verified",
-    "virtual_account": {
-      "account_number": "7098765432",
-      "bank_name": "GTBank",
-      "account_name": "SAGIRU GARBA LENDRO"
-    }
+**Response (success)**
+```json
+{
+  "status":  "success",
+  "message": "Airtime topped up successfully",
+  "data": {
+    "reference":  "LDR-1718400000-abc123",
+    "network":    "mtn",
+    "amount":     500,
+    "phone":      "08012345678"
   }
+}
 ```
 
-**Important fix applied (2025-06-20):** The `users` table uses the column `name` (not `fullname`). An earlier bug queried `fullname` and returned NULL for user name — fixed to `SELECT email, name, phone FROM users`.
+### Data Purchase
+
+**Request** `POST /data/purchase/`
+```json
+{
+  "apikey":       "<CHEAPDATAHUB_KEY>",
+  "bundle_id":    "42",
+  "phone_number": "08012345678",
+  "request_id":   "LDR-1718400000-def456"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":  "success",
+  "message": "Data bundle activated",
+  "data": {
+    "reference": "LDR-1718400000-def456",
+    "network":   "mtn",
+    "plan":      "1GB 30 Days"
+  }
+}
+```
+
+### Electricity Purchase
+
+**Request** `POST /electricity/purchase/`
+```json
+{
+  "apikey":        "<CHEAPDATAHUB_KEY>",
+  "disco_id":      "AEDC",
+  "meter_number":  "12345678901",
+  "amount":        2000,
+  "meter_type":    "prepaid",
+  "phone_number":  "08012345678",
+  "request_id":    "LDR-1718400000-ghi789"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":  "success",
+  "message": "Token generated",
+  "data": {
+    "token":          "1234-5678-9012-3456",
+    "units":          "23.4 kWh",
+    "meter_number":   "12345678901",
+    "reference":      "LDR-1718400000-ghi789"
+  }
+}
+```
+
+### Cable TV Purchase
+
+**Request** `POST /cable/purchase/`
+```json
+{
+  "apikey":       "<CHEAPDATAHUB_KEY>",
+  "plan_id":      "dstv-compact",
+  "cardnumber":   "1234567890",
+  "phone":        "08012345678",
+  "request_id":   "LDR-1718400000-jkl012"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":  "success",
+  "message": "DSTv Compact subscription renewed",
+  "data": {
+    "smartcard":   "1234567890",
+    "plan":        "DSTv Compact",
+    "reference":   "LDR-1718400000-jkl012"
+  }
+}
+```
+
+### Education / Exam PIN Purchase
+
+**Request** `POST /exam-pin/purchase/`
+```json
+{
+  "apikey":      "<CHEAPDATAHUB_KEY>",
+  "product_id":  "waec",
+  "quantity":    1,
+  "request_id":  "LDR-1718400000-mno345"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":  "success",
+  "message": "WAEC PIN purchased",
+  "data": {
+    "pin":       "1234-5678-9012",
+    "serial":    "SER12345678",
+    "reference": "LDR-1718400000-mno345"
+  }
+}
+```
 
 ---
 
-## Cron Job / Background Worker
+## Provider B — ConnectBridge
 
-### What the worker does
+**Base URL:** `https://connectbridge.com.ng`  
+**Auth:** `Authorization: Token <API_KEY>` header  
+**DB:** `auth_mode = 'token'` in the `providers` table
 
-`api/v1/workers/process_transactions.php` pulls pending jobs from `transaction_queue`, calls the appropriate provider, writes the result to `transactions`, and credits or refunds the user's wallet.
+### Airtime Purchase
 
-### Cron job (installed on cPanel)
-
+**Request** `POST /api/airtime`
+```json
+{
+  "network":        "mtn",
+  "mobile_number":  "08012345678",
+  "amount":         500,
+  "request_id":     "LDR-1718400000-abc123"
+}
 ```
-* * * * *   php /home/tracsmda/lendro/api/v1/workers/process_transactions.php >> /home/tracsmda/tmp/worker.log 2>&1
+
+**Response (success)**
+```json
+{
+  "status":    "success",
+  "message":   "Airtime purchase successful",
+  "reference": "LDR-1718400000-abc123",
+  "data": {
+    "network": "mtn",
+    "amount":  500,
+    "phone":   "08012345678"
+  }
+}
 ```
 
-**Schedule:** every minute  
-**Log file:** `/home/tracsmda/tmp/worker.log`  
-**Installed via:** cPanel JSON API v2 (`Cron::add_line`), linekey `2819605722`
+### Data Purchase
 
-### Verify it's running
+**Request** `POST /api/data`
+```json
+{
+  "network":        "mtn",
+  "plan":           "mtn-1gb-30days",
+  "mobile_number":  "08012345678",
+  "bypass":         0,
+  "request_id":     "LDR-1718400000-def456"
+}
+```
 
+**Response (success)**
+```json
+{
+  "status":    "success",
+  "message":   "Data purchase successful",
+  "reference": "LDR-1718400000-def456",
+  "data": {
+    "network": "mtn",
+    "plan":    "1GB — 30 Days"
+  }
+}
+```
+
+### Electricity Purchase
+
+**Request** `POST /api/electricity`
+```json
+{
+  "disco_name":    "AEDC",
+  "meter_number":  "12345678901",
+  "meter_type":    "prepaid",
+  "amount":        2000,
+  "phone":         "08012345678",
+  "request_id":    "LDR-1718400000-ghi789"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":    "success",
+  "message":   "Electricity token generated",
+  "reference": "LDR-1718400000-ghi789",
+  "data": {
+    "token":         "1234-5678-9012-3456",
+    "units":         "23.4 kWh",
+    "meter_number":  "12345678901"
+  }
+}
+```
+
+### Cable TV Purchase
+
+**Request** `POST /api/cable`
+```json
+{
+  "cable_name":        "dstv",
+  "smartcard_number":  "1234567890",
+  "plan_id":           "dstv-compact",
+  "phone":             "08012345678",
+  "request_id":        "LDR-1718400000-jkl012"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":    "success",
+  "message":   "Cable subscription successful",
+  "reference": "LDR-1718400000-jkl012",
+  "data": {
+    "smartcard": "1234567890",
+    "plan":      "DSTv Compact"
+  }
+}
+```
+
+### Education / Exam PIN Purchase
+
+**Request** `POST /api/education`
+```json
+{
+  "exam_body":    "waec",
+  "quantity":     1,
+  "phone":        "08012345678",
+  "request_id":   "LDR-1718400000-mno345"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":    "success",
+  "message":   "Exam PIN purchased",
+  "reference": "LDR-1718400000-mno345",
+  "data": {
+    "pin":    "1234-5678-9012",
+    "serial": "SER12345678"
+  }
+}
+```
+
+### Smart Card / Meter Verification
+
+**Request** `POST /api/query` (or `/api/verify`)
+```json
+{
+  "type":          "cable",
+  "provider":      "dstv",
+  "smartcard_no":  "1234567890"
+}
+```
+
+**Response (success)**
+```json
+{
+  "status":       "success",
+  "customer_name": "JOHN DOE",
+  "account_no":    "1234567890",
+  "current_plan":  "DSTv Compact"
+}
+```
+
+---
+
+## Key Frontend Flows
+
+### Home — Partner Services Widget
+Always shows **4 hardcoded icons** (no DB dependency):
+`Airtime` → `Data` → `Cable TV` → `Education` + `More`
+
+### Services Page
+- **Airtime Recharge**: DB networks if seeded, else static MTN / Airtel / GLO / 9mobile fallback
+- **Data Bundle**: DB networks if seeded, else static MTN / Airtel / GLO / 9mobile-data fallback (all 4)
+- **Other Services**: Cable TV + Electricity + Education from DB categories
+
+### Purchase Flow
+1. User taps service icon → popup form opens
+2. For Cable TV / Electricity: **Verify** button calls `POST /api/v1/client/verify` → shows customer name card
+3. User fills amount/phone → taps **Pay**
+4. `Buy()` calls `POST /api/v1/client/order` → wallet debited instantly
+5. Background worker calls Provider A or B
+6. Wallet balance **auto-refreshes** after every successful purchase via `GET /api/v1/client/wallet`
+
+---
+
+## API Endpoints Reference
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/client/services` | All grouped services (airtime, data, categories) |
+| POST | `/api/v1/client/order` | Place a purchase order |
+| GET | `/api/v1/client/wallet` | Wallet balance + recent transactions |
+| POST | `/api/v1/client/verify` | Verify smart card / meter number |
+| GET | `/api/v1/client/show` | Data plans for a specific network |
+| GET | `/api/v1/client/transactions` | Transaction history |
+
+---
+
+## Deployment
+
+**Live server:** cPanel at `server304.web-hosting.com`, doc root `/home/tracsmda/lendro`  
+**Upload via FTP:**
 ```bash
-# Check cPanel — Email/Cron Jobs section
-# Or tail the log file (requires SSH or File Manager)
-tail -f /home/tracsmda/tmp/worker.log
+curl --ftp-ssl "ftp://server304.web-hosting.com/lendro/<path>" \
+  -u "tracsmda:<pass>" -T <localfile>
 ```
 
-### How it works
-
-```
-transaction_queue (status=pending)
-    └─ process_transactions.php (every 60 s)
-          ├─ Lock row (status=processing)
-          ├─ ProviderFactory::build(provider_slug)
-          ├─ $provider->purchase(params)
-          ├─ Normalizer::normalize(response)
-          ├─ Update transactions table
-          └─ WalletService: debit on success / refund on failure
-```
-
----
-
-## API Reference
-
-All endpoints are under `https://lendro.trackd.live/api/v1/`. Session cookie required for protected routes.
-
-### Auth
-
-| Method | Path               | Auth | Description                                       |
-|--------|--------------------|------|---------------------------------------------------|
-| POST   | `/auth/login`      | —    | Login with phone + PIN                            |
-| POST   | `/auth/register`   | —    | Register new user                                 |
-| POST   | `/auth/logout`     | ✅   | Destroy session                                   |
-| POST   | `/auth/kyc`        | ✅   | Submit BVN/NIN, create virtual account            |
-| POST   | `/auth/forgot-pwd` | —    | Request PIN reset                                 |
-
-### Accounts
-
-| Method | Path                | Auth | Description                                      |
-|--------|---------------------|------|--------------------------------------------------|
-| GET    | `/accounts/home`    | ✅   | Dashboard data (wallet, transactions, leaderboard) |
-| POST   | `/accounts/deposit` | ✅   | Initiate or verify SquadCo card deposit          |
-
-### Client (Services & Orders)
-
-| Method | Path                   | Auth | Description                                   |
-|--------|------------------------|------|-----------------------------------------------|
-| GET    | `/client/services`     | ✅   | All service categories, airtime networks      |
-| GET    | `/client/show`         | ✅   | Data plans for a given network                |
-| POST   | `/client/order`        | ✅   | Buy airtime or data (deduped by idempotency)  |
-| GET    | `/client/status`       | ✅   | Check order status by reference               |
-| GET    | `/client/transactions` | ✅   | Paginated transaction list                    |
-
-### Webhooks
-
-| Method | Path                    | Auth | Description                              |
-|--------|-------------------------|------|------------------------------------------|
-| POST   | `/webhooks/provider`    | HMAC | Receive SquadCo payment/order callbacks  |
-
----
-
-## Deployment & cPanel Setup
-
-### FTP deployment
-
+**DB migration:**
 ```bash
-curl -u "tracsmda:<password>" -T localfile.php \
-  "ftp://server304.web-hosting.com/lendro/path/to/remote.php"
-```
-
-### Allowed API paths (`.htaccess`)
-
-Direct PHP files in `api/v1/` root are blocked. Only subdirectory requests are permitted:
-
-```
-api/v1/auth/        ← login, register, kyc, logout
-api/v1/accounts/    ← home, deposit
-api/v1/client/      ← services, show, order, status, transactions
-api/v1/cronjob/     ← populate-services, sync, reconcile, qproof
-api/v1/webhooks/    ← provider
-```
-
-Any other direct `.php` file in `api/v1/` returns 403.
-
-### DB migration (one-time)
-
-Run the migration steps in `dbmlendro.sql`. The most recent additions (applied 2025-06-20):
-
-```sql
-CREATE TABLE IF NOT EXISTS user_kyc (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  userid INT NOT NULL,
-  nin_hash VARCHAR(64),
-  bvn_hash VARCHAR(64),
-  first_name VARCHAR(100),
-  last_name VARCHAR(100),
-  dob DATE,
-  status ENUM('pending','verified','failed') DEFAULT 'pending',
-  verified_at DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uniq_userid (userid)
-);
-
-CREATE TABLE IF NOT EXISTS virtual_accounts (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  userid INT NOT NULL UNIQUE,
-  account_number VARCHAR(20) NOT NULL,
-  account_name VARCHAR(150),
-  bank_name VARCHAR(100),
-  bank_code VARCHAR(10),
-  provider_ref VARCHAR(100),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-ALTER TABLE wallet_logs ADD COLUMN IF NOT EXISTS running_balance DECIMAL(12,2) DEFAULT 0;
+# api/v1/database/add_provider_auth_mode.sql
+ALTER TABLE providers ADD COLUMN IF NOT EXISTS auth_mode VARCHAR(20) DEFAULT 'bearer';
+UPDATE providers SET auth_mode='token' WHERE slug='connectbridge';
 ```
 
 ---
 
-## Environment & Configuration
+## Changes Log
 
-All credentials live in `api/v1/configs.php` (not committed in plain form).
-
-| Config Key           | Description                                           |
-|----------------------|-------------------------------------------------------|
-| `DB_HOST`            | MariaDB hostname (usually `localhost`)                |
-| `DB_NAME`            | `tracsmda_lendro`                                     |
-| `DB_USER`            | `tracsmda_lendro1`                                    |
-| `DB_PASS`            | DB password                                           |
-| `CHEAPDATAHUB_KEY`   | CheapDataHub API token                                |
-| `CONNECTBRIDGE_KEY`  | ConnectBridge API token                               |
-| `SQUAD_PUBLIC_KEY`   | SquadCo public key (frontend deposit flow)            |
-| `SQUAD_SECRET_KEY`   | SquadCo secret key (server-side deposit verify + KYC) |
-| `SQUAD_VA_URL`       | SquadCo virtual account API endpoint                  |
-| `MARKUP_RATE`        | Default markup on data/airtime prices (e.g. `0.05`)  |
-| `DEPOSIT_FEE_RATE`   | Card deposit fee rate (e.g. `0.015` = 1.5%)          |
-| `CRON_SECRET`        | Secret query param for cron-only endpoints            |
-
----
-
-## PHP 7.4 Compatibility Notes
-
-The server runs PHP 7.4. The following modern PHP features are **not available** and have been replaced:
-
-| Modern (8.x)                  | PHP 7.4 replacement used                      |
-|-------------------------------|-----------------------------------------------|
-| `str_starts_with()`           | `strpos($h, $n) === 0`                        |
-| `str_ends_with()`             | `substr($h, -strlen($n)) === $n`              |
-| Union types `string\|false`   | Removed — single return type or `@return`     |
-| `match` expression            | `switch` / array map                          |
-| Named arguments               | Positional only                               |
-
----
-
-## Contact
-
-**Email:** sagirugarba24@gmail.com  
-**Phone / WhatsApp:** 08065488451  
-**GitHub:** https://github.com/SagsMan/Lendro-vtu-api
+| Date | Summary |
+|---|---|
+| 2026-06-20 | Initial full deployment: both providers, wallet, services, education |
+| 2026-06-20 | Home Partner Services: 4 hardcoded icons (Airtime/Data/Cable/Education) always visible |
+| 2026-06-20 | Services page: static network fallbacks for Airtime and Data (including 9mobile) |
+| 2026-06-20 | Page titles fixed: "Electricity", "Cable TV", "Education" (not DISCO bill names) |
+| 2026-06-20 | Smart card/meter Verify step before Cable TV / Electricity purchase |
+| 2026-06-20 | ConnectBridge Token auth (`Authorization: Token`) |
+| 2026-06-20 | Wallet balance auto-refreshes after every successful purchase |

@@ -82,6 +82,16 @@ const Buy = async ({category,data,setWalletData,setMaxCUPoint,setBusy,setPopupOp
             saveStorage("lendro.wallet",res.data?.wallet,{merge:true});
             setWalletData(res.data?.wallet);
             setMaxCUPoint(res.data?.wallet.maxusage);
+        } else {
+            // Auto-refresh wallet balance from server after any successful purchase
+            try {
+              const wr = await apiFetch(apiEndPoint+"/client/wallet");
+              if(wr?.status==="success" && wr?.data?.wallet){
+                saveStorage("lendro.wallet",wr.data.wallet,{merge:true});
+                setWalletData(wr.data.wallet);
+                setMaxCUPoint(wr.data.wallet.maxusage);
+              }
+            } catch(_){}
         }
         if(category === "airtime"){
           alert(`${formatCurrency(data?.amount)} airtime request submitted. Ref: ${res?.reference || ""}`);

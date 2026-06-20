@@ -49,17 +49,35 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                   //Data..........
                   e("h3", { className: "text-gray-900 text-left border-b border-gray-20 font-bold pb-1 mb-3" }, "Data Bundle"),
                   e("div", { className: "grid grid-cols-4 gap-4 mb-5" },
-                    mdatas.map((mdata,i) => {
-                      let aName = mdata?.name || "", aCode = mdata?.serviceID || "", aImg = flwImages[aCode] || "", aMaxPrice = mdata?.maximum_amount || null;
-
-                      return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
-                        onClick: () => { setPopupOpen({open:false, data:{dwat:"viewdataitems",catname:"data",code:aCode,maxPrice:aMaxPrice}}); setPage("pageitems"); } },
-                              e("div", { className: `w-14 h-14 ${flwColors[aCode] || "bg-indigo-500"} rounded-xl flex items-center justify-center shadow-md` },
-                                e("img", {className: "w-7 h-7 text-white rounded-full object-cover",src:`${aImg}`})
-                              ),
-                              e("span", { className: "text-xs text-center leading-tight" }, e("p",{className:"font-semibold text-gray-900"},`${flwNames[aCode] || aName}`),e("p",{className:"text-gray-500"},"Data") )
-                      )
-                    })
+                    // Use DB data networks if available, otherwise static fallback with all 4 networks
+                    (mdatas.length > 0
+                      ? mdatas.map((mdata,i)=>{
+                          let aName=mdata?.name||"", aCode=mdata?.serviceID||"", aImg=flwImages[aCode]||"", aMaxPrice=mdata?.maximum_amount||null;
+                          return (aName&&aCode)&&e("div",{key:aCode||i,className:"flex flex-col items-center gap-2 cursor-pointer",
+                            onClick:()=>{setPopupOpen({open:false,data:{dwat:"viewdataitems",catname:"data",code:aCode,maxPrice:aMaxPrice}});setPage("pageitems");}},
+                            e("div",{className:`w-14 h-14 ${flwColors[aCode]||"bg-indigo-500"} rounded-xl flex items-center justify-center shadow-md`},
+                              e("img",{className:"w-7 h-7 text-white rounded-full object-cover",src:aImg})
+                            ),
+                            e("span",{className:"text-xs text-center leading-tight"},e("p",{className:"font-semibold text-gray-900"},flwNames[aCode]||aName),e("p",{className:"text-gray-500"},"Data"))
+                          );
+                        })
+                      : [
+                          {code:"mtn-data",    net:"mtn",     label:"MTN",     color:"bg-amber-500"},
+                          {code:"airtel-data",  net:"airtel",  label:"Airtel",  color:"bg-red-500"},
+                          {code:"glo-data",     net:"glo",     label:"GLO",     color:"bg-green-600"},
+                          {code:"9mobile-data", net:"9mobile", label:"9mobile", color:"bg-lime-600"},
+                        ].map((n,i)=>
+                          e("div",{key:n.code,className:"flex flex-col items-center gap-2 cursor-pointer",
+                            onClick:()=>{setPopupOpen({open:false,data:{dwat:"viewdataitems",catname:"data",code:n.code,maxPrice:null}});setPage("pageitems");}},
+                            e("div",{className:`w-14 h-14 ${n.color} rounded-xl flex items-center justify-center shadow-md`},
+                              flwImages[n.net]
+                                ? e("img",{className:"w-8 h-8 rounded-full object-cover",src:flwImages[n.net]})
+                                : e("i",{"data-lucide":"wifi",className:"w-7 h-7 text-white"})
+                            ),
+                            e("span",{className:"text-xs text-center leading-tight"},e("p",{className:"font-semibold text-gray-900"},n.label),e("p",{className:"text-gray-500"},"Data"))
+                          )
+                        )
+                    )
                   ),
 
                   //Other Services........
