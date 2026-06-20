@@ -1,4 +1,4 @@
-function Home({user,wallet, categories, airtime, greeting,maxCUPoint,transactions,leaderboard, Per5Point,setPage,popupOpen,setPopupOpen,setBusy}){
+function Home({user,wallet, categories, airtime, data, greeting,maxCUPoint,transactions,leaderboard, Per5Point,setPage,popupOpen,setPopupOpen,setBusy}){
   const scores = wallet?.scores;
   myPlan = wallet?.plan || null;
   //console.log("Plan: ",myPlan);
@@ -8,7 +8,7 @@ function Home({user,wallet, categories, airtime, greeting,maxCUPoint,transaction
               
               e("div", { className: "app-content px-3 pb-5 mt-6 space-y-6" },
                   e(BoostNotification,{setPage}), // Boost Your Score Notification
-                  e(ServicesOnHome,{categories,airtime,setPage,popupOpen,setPopupOpen,setBusy}), 
+                  e(ServicesOnHome,{categories,airtime,data,setPage,popupOpen,setPopupOpen,setBusy}), 
                   e(UpgradeNotifier,{setPage}),
                   e(AboutInfoCard,{setPage}), // About Info Card
               )

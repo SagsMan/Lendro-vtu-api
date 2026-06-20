@@ -1,37 +1,40 @@
 <?php
 /**
- * BaseProvider — shared HTTP request logic for all providers
+ * BaseProvider — shared HTTP request logic for all providers.
  *
- * Each concrete provider (ProviderA, ProviderB, …) extends this class and gets
- * the request() helper for free. The subclass only needs to implement
- * the four methods defined in ProviderInterface.
+ * Supports two auth modes:
+ *   "bearer" (default) — Authorization: Bearer <key>   (ProviderA / CheapDataHub)
+ *   "token"            — Authorization: Token  <key>   (ProviderB / ConnectBridge)
  */
 abstract class BaseProvider
 {
     protected string $baseUrl;
     protected string $apiKey;
+    protected string $authMode; // "bearer" | "token"
 
     public function __construct(array $config)
     {
-        $this->baseUrl = rtrim($config['base_url'], '/');
-        $this->apiKey  = $config['api_key'];
+        $this->baseUrl  = rtrim($config['base_url'], '/');
+        $this->apiKey   = $config['api_key'];
+        // providers table may have an auth_mode column; default is "bearer"
+        $this->authMode = strtolower(trim($config['auth_mode'] ?? 'bearer'));
     }
 
     /**
      * Generic HTTP helper — supports GET and POST.
-     *
-     * Returns the decoded JSON response as an array.
-     * On any error (network, bad JSON, non-2xx) it returns a normalised
-     * failure array so callers never have to handle raw curl errors.
+     * Returns decoded JSON or a normalised failure array.
      */
     protected function request(string $endpoint, array $payload = [], string $method = 'GET'): array
     {
         $url = $this->baseUrl . $endpoint;
 
-        // For GET requests, append params as query string
         if (strtoupper($method) === 'GET' && !empty($payload)) {
             $url .= '?' . http_build_query($payload);
         }
+
+        $authHeader = ($this->authMode === 'token')
+            ? 'Authorization: Token '  . $this->apiKey
+            : 'Authorization: Bearer ' . $this->apiKey;
 
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -39,12 +42,12 @@ abstract class BaseProvider
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 40,
             CURLOPT_CONNECTTIMEOUT => 15,
-            CURLOPT_SSL_VERIFYPEER => true,   // always verify in production
+            CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_CUSTOMREQUEST  => strtoupper($method),
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
                 'Accept: application/json',
-                'Authorization: Bearer ' . $this->apiKey,
+                $authHeader,
             ],
         ]);
 
@@ -65,7 +68,7 @@ abstract class BaseProvider
 
         $decoded = json_decode($response, true);
         if ($decoded === null) {
-            error_log("[Provider:{$endpoint}] Invalid JSON response (HTTP {$httpCode}): " . substr($response, 0, 300));
+            error_log("[Provider:{$endpoint}] Invalid JSON (HTTP {$httpCode}): " . substr($response, 0, 300));
             return ['status' => 'failed', 'message' => 'Invalid response from provider', 'http_code' => $httpCode];
         }
 
@@ -73,29 +76,16 @@ abstract class BaseProvider
     }
 
     /**
-     * Map a free-text service type string onto one of our four canonical types.
-     * Used by subclass normalizers to avoid repeating this logic.
+     * Map a free-text service type onto one of our four canonical types.
      */
     protected function normServiceType(string $value): string
     {
         $v = strtolower($value);
-
-        if (preg_match('/cable|satellite|dstv|gotv|startimes|television|\btv\b/i', $v)) {
-            return 'cable';
-        }
-        if (preg_match('/electric|electricity|power|disco|utility|energy/i', $v)) {
-            return 'electricity';
-        }
-        if (preg_match('/airtime|recharge|top\s?up/i', $v)) {
-            return 'airtime';
-        }
-        if (preg_match('/data|internet|bundle/i', $v)) {
-            return 'data';
-        }
-        if (preg_match('/exam|waec|jamb|education|pin/i', $v)) {
-            return 'education';
-        }
-
+        if (preg_match('/cable|satellite|dstv|gotv|startimes|television|\btv\b/i', $v)) return 'cable';
+        if (preg_match('/electric|electricity|power|disco|utility|energy/i', $v))        return 'electricity';
+        if (preg_match('/airtime|recharge|top\s?up/i', $v))                              return 'airtime';
+        if (preg_match('/data|internet|bundle/i', $v))                                   return 'data';
+        if (preg_match('/exam|waec|jamb|education|pin/i', $v))                           return 'education';
         return 'other';
     }
 }

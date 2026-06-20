@@ -215,7 +215,7 @@
             e(SpinnerOverlay, { show: busy }),
             e(GlobalAlert),
 
-            page === "home" && e(Home, { user:userData,wallet:walletData, categories:servicesData?.categories,airtime:servicesData?.airtime, greeting, maxCUPoint,transactions,leaderboard:leaderboardData,Per5Point,setPage,popupOpen,setPopupOpen,setBusy }), 
+            page === "home" && e(Home, { user:userData,wallet:walletData, categories:servicesData?.categories,airtime:servicesData?.airtime,data:servicesData?.data, greeting, maxCUPoint,transactions,leaderboard:leaderboardData,Per5Point,setPage,popupOpen,setPopupOpen,setBusy }), 
 
             //page === "participate" && e(Participate, {user:userData,wallet:walletData, setPage,updateWallet }),
             //page === "myscores" && e(MyScores, { wallet:walletData, setPage,maxCUPoint,Per5Point }),

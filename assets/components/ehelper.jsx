@@ -36,6 +36,45 @@ window.flwColors = {"airtime":"bg-amber-500","data":"bg-indigo-500","tv-subscrip
 };
 ////////////////////////
 
+window.categoryBillers = {
+  "tv-subscription": [
+    {name:"StarTimes", code:"startimes", icon:"tv",             color:"bg-yellow-600"},
+    {name:"DSTv",      code:"dstv",      icon:"tv",             color:"bg-blue-700"},
+    {name:"GOtv",      code:"gotv",      icon:"tv",             color:"bg-orange-500"},
+  ],
+  "electricity-bill": [
+    {name:"AEDC",  code:"AEDC",  label:"Abuja Electric",         icon:"zap", color:"bg-yellow-500"},
+    {name:"EKEDC", code:"EKEDC", label:"Eko Electric",           icon:"zap", color:"bg-blue-500"},
+    {name:"IBEDC", code:"IBEDC", label:"Ibadan Electric",        icon:"zap", color:"bg-green-500"},
+    {name:"IKEDC", code:"IKEDC", label:"Ikeja Electric",         icon:"zap", color:"bg-indigo-500"},
+    {name:"KEDCO", code:"KEDCO", label:"Kaduna Electric",        icon:"zap", color:"bg-purple-500"},
+    {name:"PHED",  code:"PHED",  label:"Port Harcourt Electric", icon:"zap", color:"bg-red-500"},
+    {name:"JED",   code:"JED",   label:"Jos Electric",           icon:"zap", color:"bg-orange-500"},
+    {name:"EEDC",  code:"EEDC",  label:"Enugu Electric",         icon:"zap", color:"bg-teal-500"},
+    {name:"YEDC",  code:"YEDC",  label:"Yola Electric",          icon:"zap", color:"bg-pink-500"},
+    {name:"BEDC",  code:"BEDC",  label:"Benin Electric",         icon:"zap", color:"bg-cyan-500"},
+  ],
+  "education": [
+    {name:"WAEC",   code:"waec",   icon:"graduation-cap", color:"bg-blue-600"},
+    {name:"JAMB",   code:"jamb",   icon:"graduation-cap", color:"bg-green-700"},
+    {name:"NECO",   code:"neco",   icon:"graduation-cap", color:"bg-red-600"},
+    {name:"NABTEB", code:"nabteb", icon:"graduation-cap", color:"bg-purple-600"},
+  ],
+};
+window.categoryTitles = {
+  "tv-subscription":  "Cable TV",
+  "electricity-bill": "Electricity",
+  "education":        "Education",
+  // aliases (in case DB identifier differs)
+  "cable":       "Cable TV",
+  "electricity": "Electricity",
+  "exam":        "Education",
+};
+// Aliases in categoryBillers so "electricity"/"cable" work too
+window.categoryBillers["cable"]       = window.categoryBillers["tv-subscription"];
+window.categoryBillers["electricity"] = window.categoryBillers["electricity-bill"];
+window.categoryBillers["exam"]        = window.categoryBillers["education"];
+
 const ErrorPage = ({setPage,handleLogout})=>{
   return e("div", { className: "app-page" },
             e("div", { className: "px-3 min-h-[calc(100vh-80px)] flex items-center justify-center" }, 

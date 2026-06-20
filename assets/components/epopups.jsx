@@ -51,6 +51,26 @@ const Buy = async ({category,data,setWalletData,setMaxCUPoint,setBusy,setPopupOp
       url  = "/client/order.php";
       body = {service_id:data?.service_id, phone:data?.myphone, idempotency_key:idempotencyKey};
 
+    }else if(category === "cable"){
+      if(!data?.smartcard){ alert("Smart card / IUC number is required!"); return; }
+      if(!data?.plan_id)  { alert("Please select a plan!"); return; }
+      if(data?.balance < 100){ alert("Insufficient balance in your wallet."); return; }
+      url  = "/client/order.php";
+      body = {service_id:data?.plan_id, smartcard_number:data?.smartcard, phone:data?.myphone||"00000000000", idempotency_key:idempotencyKey};
+
+    }else if(category === "electricity"){
+      if(!data?.meter_number){ alert("Meter number is required!"); return; }
+      if(data?.amount < 100) { alert("Minimum allowed is ₦100"); return; }
+      if(data?.balance < 100){ alert("Insufficient balance in your wallet."); return; }
+      url  = "/client/order.php";
+      body = {service_id:data?.service_id, meter_number:data?.meter_number, meter_type:data?.meter_type||"prepaid", phone:data?.myphone||"00000000000", amount:data?.amount, idempotency_key:idempotencyKey};
+
+    }else if(category === "education"){
+      if(!data?.quantity||data?.quantity<1){ alert("Quantity must be at least 1!"); return; }
+      if(data?.balance < 100){ alert("Insufficient balance in your wallet."); return; }
+      url  = "/client/order.php";
+      body = {service_id:data?.service_id, quantity:data?.quantity||1, phone:data?.myphone||"00000000000", idempotency_key:idempotencyKey};
+
     }else if(!category){ return; }
 
     try{
@@ -66,6 +86,12 @@ const Buy = async ({category,data,setWalletData,setMaxCUPoint,setBusy,setPopupOp
         if(category === "airtime"){
           alert(`${formatCurrency(data?.amount)} airtime request submitted. Ref: ${res?.reference || ""}`);
 
+        }else if(category === "cable"){
+          alert("Cable TV subscription submitted. Ref: "+(res?.reference||"")+". Token will be sent to your phone.");
+        }else if(category === "electricity"){
+          alert("Electricity token submitted. Ref: "+(res?.reference||"")+". Token/units sent to your phone.");
+        }else if(category === "education"){
+          alert("Exam PIN request submitted. Ref: "+(res?.reference||"")+". PIN will be sent to your phone.");
         }else if(category === "data"){
           alert(`${formatCurrency(data?.amount)} data request submitted. Ref: ${res?.reference || ""}. You'll receive it shortly.`);
 
@@ -119,6 +145,12 @@ const PopUpModal = ({ popupOpen, setPopupOpen, onClose, onSubmit, wallet, servic
       // Buy Data (triggered from PageItems item click)
       ((data?.dwat === "buydata") && e(billerForm, {data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions})),
 
+      // Buy Cable TV
+      ((data?.dwat === "buycable")       && e(cableForm,       {data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions})),
+      // Buy Electricity
+      ((data?.dwat === "buyelectricity") && e(electricityForm, {data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions})),
+      // Buy Education PIN
+      ((data?.dwat === "buyeducation")   && e(educationForm,   {data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions})),
       // KYC / Generate Virtual Account
       ((data?.dwat === "kyc") && e(kycForm, {data,setBusy,setPopupOpen})),
 
@@ -440,5 +472,294 @@ const kycForm = ({data, setBusy, setPopupOpen}) => {
       }`,
       onClick: handleSubmit
     }, loading ? "Verifying…" : "Verify & Generate Account")
+  );
+};
+
+
+//////////////////// Cable TV Form  (with smart card verification)
+const cableForm = ({data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions}) => {
+  const balance  = wallet?.balance || 0;
+  const provider = data?.provider     || "";
+  const provName = data?.providerName || provider;
+
+  const [smartcard,  setSmartcard]  = useState("");
+  const [myphone,    setMyPhone]    = useState(getStorage("lendro.userphone") || "");
+  const [planId,     setPlanId]     = useState("");
+  const [verified,   setVerified]   = useState(null);  // {name, package, due_date}
+  const [verifying,  setVerifying]  = useState(false);
+  const [verifyErr,  setVerifyErr]  = useState("");
+
+  const cablePlans = {
+    startimes:[
+      {id:"startimes_nova",    name:"Nova",         price:1900},
+      {id:"startimes_basic",   name:"Basic",        price:2600},
+      {id:"startimes_smart",   name:"Smart",        price:3600},
+      {id:"startimes_classic", name:"Classic",      price:4500},
+      {id:"startimes_super",   name:"Super",        price:6000},
+    ],
+    dstv:[
+      {id:"dstv_padi",         name:"Padi",         price:2950},
+      {id:"dstv_yanga",        name:"Yanga",        price:3500},
+      {id:"dstv_confam",       name:"Confam",       price:6200},
+      {id:"dstv_compact",      name:"Compact",      price:15700},
+      {id:"dstv_compact_plus", name:"Compact+",     price:25000},
+      {id:"dstv_premium",      name:"Premium",      price:37000},
+    ],
+    gotv:[
+      {id:"gotv_smallie",      name:"Smallie",      price:1575},
+      {id:"gotv_jinja",        name:"Jinja",        price:2715},
+      {id:"gotv_jolli",        name:"Jolli",        price:4115},
+      {id:"gotv_max",          name:"Max",          price:6200},
+      {id:"gotv_supa",         name:"Supa",         price:9300},
+    ],
+  };
+  const plans        = cablePlans[provider] || [];
+  const selectedPlan = plans.find(p=>p.id===planId);
+
+  const handleVerify = async () => {
+    if (!smartcard || smartcard.length < 5) { setVerifyErr("Enter a valid smart card / IUC number."); return; }
+    setVerifying(true); setVerifyErr(""); setVerified(null);
+    try {
+      const res = await apiFetch("/client/verify.php", {type:"cable", provider, smartcard});
+      if (res?.status === "success") {
+        setVerified(res.data);
+      } else {
+        setVerifyErr(res?.message || "Verification failed. Check the number and try again.");
+      }
+    } catch(err) {
+      setVerifyErr("Network error. Please try again.");
+    }
+    setVerifying(false);
+  };
+
+  return e("div",{},
+    e("h3",{className:"text-lg font-semibold mb-1"},"Buy "+provName+" Subscription"),
+    e("p", {className:"text-sm text-gray-500 mb-3"},"Verify your smart card / IUC number first."),
+
+    // Step 1: Smart card input + verify button
+    e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Smart Card / IUC Number"),
+      e("div",{className:"flex gap-2"},
+        e("input",{type:"tel",placeholder:"e.g. 7042987654",maxLength:10,
+          className:"flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400",
+          value:smartcard, onChange:ev=>{setSmartcard(ev.target.value.replace(/[^0-9]/g,"").slice(0,10)); setVerified(null); setVerifyErr("");}}),
+        e("button",{
+          className:"px-4 py-2 rounded-lg text-sm font-semibold transition "+(verified?"bg-green-500 text-white":"bg-indigo-600 text-white active:scale-95"),
+          onClick: verified ? null : handleVerify,
+          disabled: verifying
+        }, verifying ? "..." : verified ? "✓ Verified" : "Verify")
+      )
+    ),
+
+    // Verify error
+    verifyErr && e("div",{className:"bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-sm text-red-700"},verifyErr),
+
+    // Verified customer info card
+    verified && e("div",{className:"bg-green-50 border border-green-200 rounded-lg p-3 mb-3"},
+      e("p",{className:"text-xs text-green-600 font-semibold uppercase tracking-wide mb-1"},"Verified Customer"),
+      e("p",{className:"text-sm font-bold text-gray-900"},verified.name),
+      verified.package && e("p",{className:"text-xs text-gray-500"},"Current plan: "+verified.package),
+      verified.due_date && e("p",{className:"text-xs text-gray-500"},"Expires: "+verified.due_date)
+    ),
+
+    // Step 2: Plan select (show only after verify)
+    verified && e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Select New Plan"),
+      e("select",{className:"w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none",
+        value:planId, onChange:ev=>setPlanId(ev.target.value)},
+        e("option",{value:""},"-- Choose Plan --"),
+        plans.map(p=>e("option",{key:p.id,value:p.id},p.name+" — "+formatCurrency(p.price)))
+      )
+    ),
+
+    // Phone number
+    verified && e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Phone Number"),
+      e("div",{className:"flex items-center"},
+        e("span",{className:"px-3 py-2 bg-gray-500/20 border border-gray-400 border-r-0 rounded-l-lg"},"+234"),
+        e("input",{type:"tel",placeholder:"8012345678",maxLength:11,
+          className:"w-full px-3 py-2 border border-gray-300 rounded-r-lg border-l-0 focus:outline-none",
+          value:myphone, onChange:ev=>setMyPhone(ev.target.value.replace(/[^0-9]/g,"").replace(/^0+/,"").slice(0,10))})
+      )
+    ),
+
+    // Price summary
+    verified && selectedPlan && e("div",{className:"bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-3 text-sm"},
+      e("span",{className:"text-gray-700"},"Total: "),
+      e("strong",{className:"text-indigo-700"},formatCurrency(selectedPlan.price))
+    ),
+
+    // Pay button (only when verified + plan selected)
+    verified && e("button",{
+      className:"w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold active:scale-95 transition "+(planId?"":"opacity-50 pointer-events-none"),
+      onClick:()=> planId && Buy({
+        category:"cable",
+        data:{service_id:planId, smartcard, plan_id:planId, myphone, balance},
+        setWalletData,setMaxCUPoint,setBusy,setPopupOpen,setTransactions
+      })
+    },"Pay"+(selectedPlan?" "+formatCurrency(selectedPlan.price):""))
+  );
+};
+
+//////////////////// Electricity Form  (with meter number verification)
+const electricityForm = ({data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions}) => {
+  const balance   = wallet?.balance || 0;
+  const discoCode = data?.provider     || "";
+  const discoName = data?.providerName || discoCode;
+
+  const [meterNo,   setMeterNo]   = useState("");
+  const [meterType, setMeterType] = useState("prepaid");
+  const [amount,    setAmount]    = useState("");
+  const [myphone,   setMyPhone]   = useState(getStorage("lendro.userphone") || "");
+  const [verified,  setVerified]  = useState(null);   // {name, address}
+  const [verifying, setVerifying] = useState(false);
+  const [verifyErr, setVerifyErr] = useState("");
+
+  const handleVerify = async () => {
+    if (!meterNo || meterNo.length < 5) { setVerifyErr("Enter a valid meter number."); return; }
+    setVerifying(true); setVerifyErr(""); setVerified(null);
+    try {
+      const res = await apiFetch("/client/verify.php", {type:"electricity", provider:discoCode, meter_number:meterNo, meter_type:meterType});
+      if (res?.status === "success") {
+        setVerified(res.data);
+      } else {
+        setVerifyErr(res?.message || "Verification failed. Check the meter number and try again.");
+      }
+    } catch(err) {
+      setVerifyErr("Network error. Please try again.");
+    }
+    setVerifying(false);
+  };
+
+  return e("div",{},
+    e("h3",{className:"text-lg font-semibold mb-1"},"Pay "+discoName+" Electricity"),
+    e("p", {className:"text-sm text-gray-500 mb-3"},"Verify your meter number first, then enter the amount."),
+
+    // Meter Type toggle (needed before verify)
+    e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Meter Type"),
+      e("div",{className:"flex gap-3"},
+        ["prepaid","postpaid"].map(t=>
+          e("button",{key:t,
+            className:"flex-1 py-2 rounded-lg border text-sm font-semibold transition "+(meterType===t?"bg-indigo-600 text-white border-indigo-600":"bg-white text-gray-600 border-gray-200"),
+            onClick:()=>{setMeterType(t); setVerified(null); setVerifyErr("");}},
+          t.charAt(0).toUpperCase()+t.slice(1))
+        )
+      )
+    ),
+
+    // Meter number + verify
+    e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Meter Number"),
+      e("div",{className:"flex gap-2"},
+        e("input",{type:"tel",placeholder:"e.g. 0101234567890",maxLength:15,
+          className:"flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400",
+          value:meterNo, onChange:ev=>{setMeterNo(ev.target.value.replace(/[^0-9]/g,"").slice(0,15)); setVerified(null); setVerifyErr("");}}),
+        e("button",{
+          className:"px-4 py-2 rounded-lg text-sm font-semibold transition "+(verified?"bg-green-500 text-white":"bg-indigo-600 text-white active:scale-95"),
+          onClick: verified ? null : handleVerify,
+          disabled: verifying
+        }, verifying ? "..." : verified ? "✓ OK" : "Verify")
+      )
+    ),
+
+    // Verify error
+    verifyErr && e("div",{className:"bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-sm text-red-700"},verifyErr),
+
+    // Verified customer info card
+    verified && e("div",{className:"bg-green-50 border border-green-200 rounded-lg p-3 mb-3"},
+      e("p",{className:"text-xs text-green-600 font-semibold uppercase tracking-wide mb-1"},"Verified Meter"),
+      e("p",{className:"text-sm font-bold text-gray-900"},verified.name),
+      verified.address && e("p",{className:"text-xs text-gray-500"},verified.address)
+    ),
+
+    // Amount input (only after verify)
+    verified && e("div",{className:"mb-1"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Amount to Purchase (₦)"),
+      e("div",{className:"flex items-center"},
+        e("span",{className:"px-3 py-2 bg-gray-500/20 border border-gray-400 border-r-0 rounded-l-lg"},"₦"),
+        e("input",{type:"number",min:100,step:100,placeholder:"Enter amount",
+          className:"w-full px-3 py-2 border border-gray-300 rounded-r-lg border-l-0 focus:outline-none",
+          value:amount, onChange:ev=>setAmount(ev.target.value)})
+      )
+    ),
+    verified && e("div",{className:"mb-3 text-xs text-gray-500"},"Minimum: ₦100"),
+
+    // Quick amount buttons
+    verified && e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Phone Number"),
+      e("div",{className:"flex items-center"},
+        e("span",{className:"px-3 py-2 bg-gray-500/20 border border-gray-400 border-r-0 rounded-l-lg"},"+234"),
+        e("input",{type:"tel",placeholder:"8012345678",maxLength:11,
+          className:"w-full px-3 py-2 border border-gray-300 rounded-r-lg border-l-0 focus:outline-none",
+          value:myphone, onChange:ev=>setMyPhone(ev.target.value.replace(/[^0-9]/g,"").replace(/^0+/,"").slice(0,10))})
+      )
+    ),
+
+    verified && e("div",{className:"flex flex-wrap gap-2 mb-3"},
+      [1000,2000,3000,5000,10000,20000].map(p=>
+        e("button",{key:p,className:"px-3 py-1.5 text-xs rounded-lg bg-gray-100 hover:bg-indigo-100 font-medium",
+          onClick:()=>setAmount(p)},formatCurrency(p))
+      )
+    ),
+
+    verified && e("button",{
+      className:"w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold active:scale-95 transition "+(amount&&parseFloat(amount)>=100?"":"opacity-50 pointer-events-none"),
+      onClick:()=>amount&&parseFloat(amount)>=100&&Buy({
+        category:"electricity",
+        data:{service_id:discoCode, meter_number:meterNo, meter_type:meterType, myphone, amount:parseFloat(amount)||0, balance},
+        setWalletData,setMaxCUPoint,setBusy,setPopupOpen,setTransactions
+      })
+    },"Pay"+(amount?" "+formatCurrency(parseFloat(amount)||0):""))
+  );
+};
+
+//////////////////// Education (Exam PIN) Form
+const educationForm = ({data,services,wallet,setBusy,setWalletData,setMaxCUPoint,setPopupOpen,setTransactions}) => {
+  const balance  = wallet?.balance || 0;
+  const examCode = data?.provider     || "";
+  const examName = data?.providerName || examCode;
+  const [quantity, setQuantity] = useState(1);
+  const [myphone,  setMyPhone]  = useState(getStorage("lendro.userphone") || "");
+
+  const examPrices = {waec:4000, jamb:7000, neco:3500, nabteb:3000};
+  const unitPrice  = examPrices[examCode] || 3500;
+  const total      = unitPrice * quantity;
+
+  return e("div",{},
+    e("h3",{className:"text-lg font-semibold mb-1"},"Buy "+examName+" Exam PIN"),
+    e("p", {className:"text-sm text-gray-500 mb-3"},"Unit price: "+formatCurrency(unitPrice)+" per PIN"),
+
+    e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Quantity"),
+      e("div",{className:"flex items-center gap-4"},
+        e("button",{className:"w-10 h-10 bg-gray-100 rounded-lg font-bold text-xl",onClick:()=>setQuantity(q=>Math.max(1,q-1))},"-"),
+        e("span",{className:"text-xl font-bold w-8 text-center"},quantity),
+        e("button",{className:"w-10 h-10 bg-gray-100 rounded-lg font-bold text-xl",onClick:()=>setQuantity(q=>Math.min(10,q+1))},"+")
+      )
+    ),
+
+    e("div",{className:"mb-3"},
+      e("label",{className:"text-sm font-medium text-gray-700 block mb-1"},"Phone Number"),
+      e("div",{className:"flex items-center"},
+        e("span",{className:"px-3 py-2 bg-gray-500/20 border border-gray-400 border-r-0 rounded-l-lg"},"+234"),
+        e("input",{type:"tel",placeholder:"8012345678",maxLength:11,
+          className:"w-full px-3 py-2 border border-gray-300 rounded-r-lg border-l-0 focus:outline-none",
+          value:myphone, onChange:ev=>setMyPhone(ev.target.value.replace(/[^0-9]/g,"").replace(/^0+/,"").slice(0,10))})
+      )
+    ),
+
+    e("div",{className:"bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-3 text-sm"},
+      e("span",{className:"text-gray-700"},quantity+" PIN"+(quantity>1?"s":"")+": "),
+      e("strong",{className:"text-indigo-700"},formatCurrency(total))
+    ),
+
+    e("button",{className:"w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold active:scale-95 transition",
+      onClick:()=>Buy({
+        category:"education",
+        data:{service_id:examCode, quantity, myphone, balance},
+        setWalletData,setMaxCUPoint,setBusy,setPopupOpen,setTransactions
+      })
+    },"Pay "+formatCurrency(total))
   );
 };

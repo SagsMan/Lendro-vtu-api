@@ -296,6 +296,11 @@ function getAllServices(PDO $db): string
                 'identifier' => $catMap[$category]['identifier'] ?? $category,
             ];
         }
+        // Education services show as a single 'Education' category entry
+        if ($type === 'education' && !in_array('education', $seenBill)) {
+            $seenBill[]       = 'education';
+            $billCategories[] = ['name' => 'Education', 'identifier' => 'education'];
+        }
     }
 
     return json_encode([

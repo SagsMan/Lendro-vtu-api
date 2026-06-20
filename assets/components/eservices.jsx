@@ -15,19 +15,35 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                   //Airtime.......
                   e("h3", { className: "text-gray-900 text-left border-b border-gray-20 font-bold pb-1 mb-3" }, "Airtime Recharge"),
                   e("div", { className: "grid grid-cols-4 gap-4 mb-5" },
-
-                    airtimes.filter(c => !["foreign-airtime"].includes(c.serviceID)).map((airtime,i) => {
-                      let aName = airtime?.name || "", aCode = airtime?.serviceID || "", aImg = flwImages[aCode] || "", aMaxPrice = airtime?.maximum_amount || null;
-                      let aServiceId = airtime?.id || null; // DB service id added in getAllServices()
-
-                      return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
-                        onClick: () => setPopupOpen({open:true, data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice,serviceid:aServiceId} }) },
-                              e("div", { className: `w-14 h-14 ${flwColors[aCode] || "bg-indigo-500"} rounded-xl flex items-center justify-center shadow-md` },
-                                e("img", {className: "w-7 h-7 text-white rounded-full object-cover",src:`${aImg}`})
-                              ),
-                              e("span", { className: "text-xs text-center leading-tight" }, e("p",{className:"font-semibold text-gray-900"},`${flwNames[aName] || aName}`),e("p",{className:"text-gray-500"},"Airtime") )
-                      )
-                    })
+                    // Use DB airtimes if available, otherwise static fallback for all 4 networks
+                    (airtimes.filter(c=>!["foreign-airtime"].includes(c.serviceID)).length > 0
+                      ? airtimes.filter(c=>!["foreign-airtime"].includes(c.serviceID)).map((airtime,i)=>{
+                          let aName=airtime?.name||"", aCode=airtime?.serviceID||"", aImg=flwImages[aCode]||"", aMaxPrice=airtime?.maximum_amount||null, aServiceId=airtime?.id||null;
+                          return (aName&&aCode)&&e("div",{key:aCode||i,className:"flex flex-col items-center gap-2 cursor-pointer",
+                            onClick:()=>setPopupOpen({open:true,data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice,serviceid:aServiceId}})},
+                            e("div",{className:`w-14 h-14 ${flwColors[aCode]||"bg-indigo-500"} rounded-xl flex items-center justify-center shadow-md`},
+                              e("img",{className:"w-7 h-7 text-white rounded-full object-cover",src:aImg})
+                            ),
+                            e("span",{className:"text-xs text-center leading-tight"},e("p",{className:"font-semibold text-gray-900"},flwNames[aName]||aName),e("p",{className:"text-gray-500"},"Airtime"))
+                          );
+                        })
+                      : [
+                          {code:"mtn",    name:"MTN",     color:"bg-yellow-400"},
+                          {code:"airtel", name:"Airtel",  color:"bg-red-500"},
+                          {code:"glo",    name:"GLO",     color:"bg-green-600"},
+                          {code:"9mobile",name:"9mobile", color:"bg-green-700"},
+                        ].map((n,i)=>
+                          e("div",{key:n.code,className:"flex flex-col items-center gap-2 cursor-pointer",
+                            onClick:()=>setPopupOpen({open:true,data:{dwat:"buyairtime",biller:n.name,code:n.code,maxPrice:null,serviceid:null}})},
+                            e("div",{className:`w-14 h-14 ${n.color} rounded-xl flex items-center justify-center shadow-md`},
+                              flwImages[n.code]
+                                ? e("img",{className:"w-8 h-8 rounded-full object-cover",src:flwImages[n.code]})
+                                : e("i",{"data-lucide":"smartphone",className:"w-7 h-7 text-white"})
+                            ),
+                            e("span",{className:"text-xs text-center leading-tight"},e("p",{className:"font-semibold text-gray-900"},n.name),e("p",{className:"text-gray-500"},"Airtime"))
+                          )
+                        )
+                    )
                   ),
 
                   //Data..........
@@ -93,49 +109,41 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
 
 ///////////////
 
-const ServicesOnHome = ({categories=[],airtime=[],setPage,popupOpen,setPopupOpen,setBusy}) => {
+const ServicesOnHome = ({categories=[],airtime=[],data=[],setPage,popupOpen,setPopupOpen,setBusy}) => {
+  // Always show all 4 partner service icons regardless of DB seed state
+  const homeIcons = [
+    { key:"airtime",   label:"Airtime",   color:"bg-amber-500",   icon:"smartphone",    onClick:()=>setPage("services") },
+    { key:"data",      label:"Data",      color:"bg-sky-500",     icon:"wifi",          onClick:()=>setPage("services") },
+    { key:"cable",     label:"Cable TV",  color:"bg-blue-700",    icon:"tv",
+      onClick:()=>{ setPopupOpen({open:false,data:{dwat:"viewcatitems",catname:"Cable TV",code:"tv-subscription"}}); setPage("pageitems"); } },
+    { key:"education", label:"Education", color:"bg-green-700",   icon:"graduation-cap",
+      onClick:()=>{ setPopupOpen({open:false,data:{dwat:"viewcatitems",catname:"Education",code:"education"}}); setPage("pageitems"); } },
+  ];
 
-  if (!categories?.length && !airtime?.length) return null;
-
-    return e("div",{ className: "bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-3" },
-            e("div", { className: "mb-5" },
-                e("h3", { className: "text-gray-900 font-bold" }, "Partner Services"),
-                e("p", { className: "text-sm text-gray-500" }, "Use partner services to earn usage points.")
-            ),
-            e("div", { className: "grid grid-cols-4 gap-3" },
-
-              airtime.filter(c => !["foreign-airtime"].includes(c.serviceID)).map((airtime,i) => {
-                 let aName = airtime?.name || "", aCode = airtime?.serviceID || "", aImg = flwImages[aCode] || "", aMaxPrice = airtime?.maximum_amount || null;
-                 let aServiceId = airtime?.id || null;
-
-                 return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
-                   onClick: () => setPopupOpen({open:true, data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice,serviceid:aServiceId} }) },
-                        e("div", { className: `w-14 h-14 ${flwColors[aCode] || "bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md` },
-                          e("img", {className: "w-7 h-7 text-white rounded-full object-cover",src:`${aImg}`})
-                        ),
-                        e("span", { className: "text-xs text-center leading-tight" }, e("p",{className:"font-semibold text-gray-900"},`${flwNames[aName] || aName}`),e("p",{className:"text-gray-500"},"Airtime") )
-                 )
-              }),
-
-              categories.filter(c => c?.name && c?.identifier).filter(c => !["airtime","insurance","other-services"].includes(c.identifier)).slice(0, 3).map((category,i) => {
-                 let catName = category?.name || "", catCode = category?.identifier || "";
-                 return (catName && catCode) && e("div", { key: catCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => setPage("services") },
-                        e("div", { className: `w-14 h-14 ${flwColors[catCode] || "bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md` },
-                          e("i", { "data-lucide": `${flwIcons[catCode] || "smartphone"}`, className: "w-7 h-7 text-white" })
-                        ),
-                        e("span", { className: "text-xs text-center leading-tight" }, e("p",{className:"font-semibold text-gray-900"},`${flwNames[catName] || catName}`) )
-                 )
-              }),
-
-              e("div", { className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => setPage("services") },
-                  e( "div", { className: `w-14 h-14 bg-gray-400 rounded-2xl flex items-center justify-center shadow-md` },
-                    e("i", { "data-lucide": "more-horizontal", className: "w-7 h-7 text-white" })
-                  ),
-                  e("span", { className: "text-xs text-center font-semibold text-gray-900 leading-tight" }, "More" )
-              )
-
-            )
-         );
+  return e("div",{ className: "bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-3" },
+    e("div", { className: "mb-5" },
+      e("h3", { className: "text-gray-900 font-bold" }, "Partner Services"),
+      e("p", { className: "text-sm text-gray-500" }, "Use partner services to earn usage points.")
+    ),
+    e("div", { className: "grid grid-cols-4 gap-3" },
+      homeIcons.map(ic =>
+        e("div",{key:ic.key, className:"flex flex-col items-center gap-2 cursor-pointer", onClick:ic.onClick},
+          e("div",{className:`w-14 h-14 ${ic.color} rounded-xl flex items-center justify-center shadow-md`},
+            e("i",{"data-lucide":ic.icon, className:"w-7 h-7 text-white"})
+          ),
+          e("span",{className:"text-xs text-center leading-tight"},
+            e("p",{className:"font-semibold text-gray-900"},ic.label)
+          )
+        )
+      ),
+      e("div",{key:"more",className:"flex flex-col items-center gap-2 cursor-pointer",onClick:()=>setPage("services")},
+        e("div",{className:"w-14 h-14 bg-gray-400 rounded-2xl flex items-center justify-center shadow-md"},
+          e("i",{"data-lucide":"more-horizontal",className:"w-7 h-7 text-white"})
+        ),
+        e("span",{className:"text-xs text-center font-semibold text-gray-900 leading-tight"},"More")
+      )
+    )
+  );
 };
 /////////////////////
 const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setBusy}) => {
@@ -163,13 +171,17 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
     return allItems;
   };
 
+  // Static billers for cable/electricity/education categories
+  const staticBillers = (window.categoryBillers||{})[billercode] || null;
+  const pageTitle     = (window.categoryTitles ||{})[billercode] || billercat;
+
   const loadItems = async () => {
           let url = "", body = {};
 
           if(popupOpen?.data?.dwat === "viewdataitems"){
               url  = `/client/show.php`;
               body = { type:"data", network:billercode };
-          } else if(popupOpen?.data?.dwat === "viewcatitems"){
+          } else if(popupOpen?.data?.dwat === "viewcatitems" && !staticBillers){
               url  = `/client/show.php`;
               body = { type:"bill", category:billercode };
           } else if(popupOpen?.data?.dwat === "viewitems"){
@@ -177,7 +189,7 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
               body = { type:"bill", category:billercode };
           }
 
-          if (!url) { setPage("services"); return; }
+          if (!url) { if(!staticBillers){ setPage("services"); } return; }
 
           try {
             setBusy(true);
@@ -211,9 +223,27 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
   const visibleItems = applyFilter(items, durFilter);
 
   return e("div", { className: "app-page pb-5" },
-            e(inHeader,{pgtitle:`${(items) ? ShortName(groupName,false):"Buy Services"}`,setPage,pg:"services"}),
+            e(inHeader,{pgtitle: staticBillers ? pageTitle : (items ? ShortName(groupName,false) : "Buy Services"),setPage,pg:"services"}),
 
             e("div", { className: "app-content px-3 pb-5 mt-5 mb-5 space-y-4" },
+
+              // Static biller list (Cable TV / Electricity / Education)
+              staticBillers && e("div",{key:"cat-billers",className:"grid grid-cols-3 gap-3 mt-1"},
+                staticBillers.map((biller,i)=>
+                  e("div",{key:biller.code||i,className:"flex flex-col items-center gap-2 cursor-pointer p-3 bg-white rounded-xl border border-gray-100 shadow-sm",
+                    onClick:()=>{
+                      const dwatMap={"tv-subscription":"buycable","electricity-bill":"buyelectricity","education":"buyeducation"};
+                      const dwat=dwatMap[billercode]||"buybill";
+                      setPopupOpen({open:true,data:{dwat,provider:biller.code,providerName:biller.name,catname:billercat,catcode:billercode}});
+                    }},
+                    e("div",{className:`w-12 h-12 ${biller.color} rounded-xl flex items-center justify-center shadow-md`},
+                      e("i",{"data-lucide":biller.icon,className:"w-6 h-6 text-white"})
+                    ),
+                    e("p",{className:"text-xs font-bold text-gray-900 text-center"},biller.name),
+                    biller.label&&e("p",{className:"text-xs text-gray-500 text-center"},biller.label)
+                  )
+                )
+              ),
 
               // Duration filter tabs — shown only for data bundles
               isData && e("div", { className: "flex gap-2 flex-wrap pt-1" },
