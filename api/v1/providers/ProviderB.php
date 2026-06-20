@@ -1,44 +1,44 @@
 <?php
 /**
  * ProviderB — ConnectBridge integration
- *
- * ConnectBridge (connectbridge.com.ng) is our secondary/fallback provider.
- * Their API structure is slightly different from CheapDataHub but our
- * normalizer maps everything to the same internal format.
  */
 require_once __DIR__ . '/BaseProvider.php';
 require_once __DIR__ . '/../ProviderInterface.php';
 
 class ProviderB extends BaseProvider implements ProviderInterface
 {
-    /**
-     * Fetch all available services from ConnectBridge.
-     * Their /services endpoint returns a paginated or flat JSON list.
-     */
     public function getServices(): array
     {
         $response = $this->request('/services', ['apikey' => $this->apiKey], 'GET');
-
-        // Return the data array, or empty if the call failed
         return $response['data'] ?? [];
     }
 
-    /**
-     * Normalise ConnectBridge's product list into our standard service structure.
-     */
     public function normalizeServices(array $raw): array
     {
         $services = [];
 
         foreach ($raw as $item) {
             $network  = strtolower(trim($item['network'] ?? ''));
-            $type     = strtolower(trim($item['type']    ?? 'data')); // "airtime" | "data"
+            $type     = strtolower(trim($item['type']    ?? 'data'));
             $duration = (int) ($item['duration'] ?? 30);
             $price    = isset($item['price']) ? (float) $item['price'] : null;
             $name     = trim($item['plan'] ?? $item['name'] ?? '');
             $code     = $item['code'] ?? $item['id'] ?? '';
 
-            // Derive service key the same way ProviderA does
+            // Determine category
+            $category = match ($type) {
+                'airtime'     => 'airtime',
+                'data'        => 'data',
+                'electricity' => 'electricity',
+                'cable'       => 'cable',
+                'education'   => 'education',
+                default       => $type,
+            };
+
+            // Normalise to bill type for non-airtime/data
+            $normType = in_array($type, ['airtime', 'data', 'education']) ? $type : 'bill';
+
+            // Build service key
             $serviceKey = strtolower("{$network}_{$type}");
             if (!empty($item['size'])) {
                 $serviceKey .= '_' . strtolower(preg_replace('/\s+/', '', $item['size']));
@@ -48,9 +48,9 @@ class ProviderB extends BaseProvider implements ProviderInterface
             $services[] = [
                 'service_key'   => $serviceKey,
                 'name'          => $name ?: strtoupper("{$network} {$type}"),
-                'type'          => $type,
+                'type'          => $normType,
                 'network'       => $network,
-                'category'      => $type,   // for data/airtime, category equals type
+                'category'      => $category,
                 'duration'      => $duration,
                 'validity_unit' => 'day',
                 'provider_code' => (string) $code,
@@ -61,9 +61,6 @@ class ProviderB extends BaseProvider implements ProviderInterface
         return $services;
     }
 
-    /**
-     * Purchase a service from ConnectBridge.
-     */
     public function purchase(array $payload): array
     {
         return $this->request('/purchase', [
@@ -75,9 +72,6 @@ class ProviderB extends BaseProvider implements ProviderInterface
         ], 'POST');
     }
 
-    /**
-     * Query a past transaction's status from ConnectBridge.
-     */
     public function queryTransaction(string $reference): array
     {
         return $this->request('/transaction-status', [
