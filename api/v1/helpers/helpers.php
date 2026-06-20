@@ -15,6 +15,7 @@
 function sendJson(array $data, int $httpCode = 200, bool $exit = true): void
 {
     http_response_code($httpCode);
+    header('Content-Type: application/json; charset=UTF-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     if ($exit) {
         exit;
@@ -26,6 +27,7 @@ function sendJson(array $data, int $httpCode = 200, bool $exit = true): void
  */
 function toJSON($data, bool $echo = true): ?string
 {
+    header('Content-Type: application/json; charset=UTF-8');
     $json = json_encode($data, JSON_UNESCAPED_UNICODE);
     if ($echo) {
         echo $json;
@@ -69,13 +71,13 @@ function toPhone10(string $phone): string
 {
     $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
 
-    if (str_starts_with($phone, '+234')) {
+    if (strpos($phone, '+234') === 0) {
         $phone = substr($phone, 4);
-    } elseif (str_starts_with($phone, '234') && strlen($phone) === 13) {
+    } elseif (strpos($phone, '234') === 0 && strlen($phone) === 13) {
         $phone = substr($phone, 3);
     }
 
-    if (preg_match('/^\d{11}$/', $phone) && str_starts_with($phone, '0')) {
+    if (preg_match('/^\d{11}$/', $phone) && strpos($phone, '0') === 0) {
         $phone = substr($phone, 1);
     }
 
@@ -86,14 +88,13 @@ function toPhone10(string $phone): string
  * Detect which Nigerian network a phone number belongs to.
  * Returns the network slug ("mtn", "airtel", "glo", "9mobile") or false.
  */
-function detectNetwork(string $phone): string|false
+function detectNetwork(string $phone)
 {
-    // Normalise to 11-digit format starting with 0
     $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
-    if (str_starts_with($phone, '+234')) {
+    if (strpos($phone, '+234') === 0) {
         $phone = '0' . substr($phone, 4);
     }
-    if (str_starts_with($phone, '234') && strlen($phone) === 13) {
+    if (strpos($phone, '234') === 0 && strlen($phone) === 13) {
         $phone = '0' . substr($phone, 3);
     }
     if (preg_match('/^\d{10}$/', $phone)) {
@@ -151,7 +152,7 @@ function refundTransaction(array $tx, PDO $db): bool
             return false;
         }
 
-        // Already refunded? Do nothing.
+        // Already refunded or succeeded? Do nothing.
         if (in_array($transaction['status'], ['reversed', 'success'])) {
             $db->commit();
             return true;
@@ -225,84 +226,89 @@ function timeAgo(string $datetime): string
 
 /**
  * Fetch all active services and return them grouped by type → network.
- * Shared by /client/services.php and any other endpoint that lists services.
+ * Includes the DB id so the frontend can pass it directly to /client/order.
  */
 function getAllServices(PDO $db): string
-  {
-      $stmt = $db->prepare(
-            'SELECT * FROM services
-              WHERE status = 1
-                AND id IN (
-                  SELECT DISTINCT service_id FROM provider_services WHERE status = 1
-                )
-              ORDER BY type ASC, network ASC, price ASC'
-        );
-      $stmt->execute();
-      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+{
+    $stmt = $db->prepare(
+        'SELECT * FROM services
+          WHERE status = 1
+            AND id IN (
+              SELECT DISTINCT service_id FROM provider_services WHERE status = 1
+            )
+          ORDER BY type ASC, network ASC, price ASC'
+    );
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-      $airtimeNetworks = [];
-      $dataNetworks    = [];
-      $billCategories  = [];
-      $seenAirtime = $seenData = $seenBill = [];
+    $airtimeNetworks = [];
+    $dataNetworks    = [];
+    $billCategories  = [];
+    $seenAirtime = $seenData = $seenBill = [];
 
-      $airtimeNames = [
-          'mtn'=>'MTN Airtime VTU','airtel'=>'Airtel Airtime VTU',
-          'glo'=>'GLO Airtime VTU','9mobile'=>'9mobile Airtime VTU','etisalat'=>'9mobile Airtime VTU',
-      ];
-      $catMap = [
-          'electricity'=>['name'=>'Electricity Bill',            'identifier'=>'electricity-bill'],
-          'cabletv'    =>['name'=>'TV Subscription',             'identifier'=>'tv-subscription'],
-          'bundle'     =>['name'=>'Cable TV Bundle',               'identifier'=>'tv-subscription'],
-          'cable'      =>['name'=>'Cable TV Subscription',          'identifier'=>'tv-subscription'],
-          'education'  =>['name'=>'Education',                   'identifier'=>'education'],
-          'insurance'  =>['name'=>'Insurance',                   'identifier'=>'insurance'],
-          'transport'  =>['name'=>'Transport and Logistics',     'identifier'=>'TRANSLOG'],
-          'betting'    =>['name'=>'Betting & Entertainment',     'identifier'=>'DEALPAY'],
-          'religion'   =>['name'=>'Religious Institutions',      'identifier'=>'RELINST'],
-          'school'     =>['name'=>'Schools & Professional Bodies','identifier'=>'SCHPB'],
-      ];
+    $airtimeNames = [
+        'mtn'     => 'MTN Airtime VTU',
+        'airtel'  => 'Airtel Airtime VTU',
+        'glo'     => 'GLO Airtime VTU',
+        '9mobile' => '9mobile Airtime VTU',
+        'etisalat'=> '9mobile Airtime VTU',
+    ];
+    $catMap = [
+        'electricity' => ['name' => 'Electricity Bill',              'identifier' => 'electricity-bill'],
+        'cabletv'     => ['name' => 'TV Subscription',               'identifier' => 'tv-subscription'],
+        'bundle'      => ['name' => 'Cable TV Bundle',               'identifier' => 'tv-subscription'],
+        'cable'       => ['name' => 'Cable TV Subscription',         'identifier' => 'tv-subscription'],
+        'education'   => ['name' => 'Education',                     'identifier' => 'education'],
+        'insurance'   => ['name' => 'Insurance',                     'identifier' => 'insurance'],
+        'transport'   => ['name' => 'Transport and Logistics',       'identifier' => 'TRANSLOG'],
+        'betting'     => ['name' => 'Betting & Entertainment',       'identifier' => 'DEALPAY'],
+        'religion'    => ['name' => 'Religious Institutions',        'identifier' => 'RELINST'],
+        'school'      => ['name' => 'Schools & Professional Bodies', 'identifier' => 'SCHPB'],
+    ];
 
-      foreach ($rows as $row) {
-          $type     = strtolower($row['type']     ?? '');
-          $network  = strtolower($row['network']  ?? '');
-          $category = strtolower($row['category'] ?? '');
+    foreach ($rows as $row) {
+        $type     = strtolower($row['type']     ?? '');
+        $network  = strtolower($row['network']  ?? '');
+        $category = strtolower($row['category'] ?? '');
 
-          if ($type === 'airtime' && $network && !in_array($network, $seenAirtime)) {
-              $seenAirtime[]     = $network;
-              $airtimeNetworks[] = [
-                  'name'           => $airtimeNames[$network] ?? (strtoupper($network).' Airtime VTU'),
-                  'serviceID'      => $network,
-                  'maximum_amount' => null,
-              ];
-          }
-          if ($type === 'data' && $network && !in_array($network, $seenData)) {
-              $seenData[]     = $network;
-              $dataNetworks[] = [
-                  'name'           => $network.'-data',
-                  'serviceID'      => $network.'-data',
-                  'maximum_amount' => $row['price'] !== null ? (float)$row['price'] : null,
-              ];
-          }
-          if ($type === 'bill' && $category && !in_array($category, $seenBill)) {
-              $seenBill[]      = $category;
-              $billCategories[] = [
-                  'name'       => $catMap[$category]['name']       ?? ucfirst($category),
-                  'identifier' => $catMap[$category]['identifier'] ?? $category,
-              ];
-          }
-      }
+        if ($type === 'airtime' && $network && !in_array($network, $seenAirtime)) {
+            $seenAirtime[]     = $network;
+            $airtimeNetworks[] = [
+                'id'             => (int) $row['id'],  // DB id for /client/order
+                'name'           => $airtimeNames[$network] ?? (strtoupper($network) . ' Airtime VTU'),
+                'serviceID'      => $network,
+                'maximum_amount' => null,
+            ];
+        }
+        if ($type === 'data' && $network && !in_array($network, $seenData)) {
+            $seenData[]     = $network;
+            $dataNetworks[] = [
+                'id'             => (int) $row['id'],  // DB id for /client/order
+                'name'           => $network . '-data',
+                'serviceID'      => $network . '-data',
+                'maximum_amount' => $row['price'] !== null ? (float) $row['price'] : null,
+            ];
+        }
+        if ($type === 'bill' && $category && !in_array($category, $seenBill)) {
+            $seenBill[]       = $category;
+            $billCategories[] = [
+                'name'       => $catMap[$category]['name']       ?? ucfirst($category),
+                'identifier' => $catMap[$category]['identifier'] ?? $category,
+            ];
+        }
+    }
 
-      return json_encode([
-          'status' => 'success',
-          'data'   => [
-              'categories' => $billCategories,
-              'airtime'    => $airtimeNetworks,
-              'data'       => $dataNetworks,
-          ],
-      ], JSON_UNESCAPED_UNICODE);
-  }
+    return json_encode([
+        'status' => 'success',
+        'data'   => [
+            'categories' => $billCategories,
+            'airtime'    => $airtimeNetworks,
+            'data'       => $dataNetworks,
+        ],
+    ], JSON_UNESCAPED_UNICODE);
+}
 
-  // ── Provider helper ───────────────────────────────────────────────────────────
+// ── Provider helper ───────────────────────────────────────────────────────────
 
 /**
  * Resolve a provider's DB id from its slug.
@@ -321,80 +327,93 @@ function getProviderId(string $slug, PDO $db): int
     return (int) $row['id'];
 }
 
-  // ── Backward-compatibility aliases ───────────────────────────────────────────
+// ── Price helper ──────────────────────────────────────────────────────────────
 
-  /**
-   * Old auth guard used in legacy endpoint files.
-   * Prefer requireAuth() in all new code.
-   */
-  function Securepg(): void
-  {
-      requireAuth();
-  }
-
-  /**
-   * Alias for getAllServices — used in legacy home.php.
-   */
-  function getServices(array $opts = []): string
-  {
-      global $db;
-      return getAllServices($db);
-  }
-
-  /**
-   * Fetch services filtered by type / network / category.
-   * Used by legacy show.php.
-   */
-  function getServicesBy(?string $type, ?string $network, ?string $category): string
-    {
-        global $db;
-        $dbNetwork = $network;
-        if ($network && str_ends_with($network, '-data')) $dbNetwork = substr($network, 0, -5);
-        $sql = 'SELECT * FROM services WHERE status = 1 AND id IN (SELECT DISTINCT service_id FROM provider_services WHERE status = 1)';
-        $params = [];
-        if ($type)      { $sql .= ' AND type = ?';           $params[] = $type; }
-        if ($dbNetwork) { $sql .= ' AND LOWER(network) = ?'; $params[] = strtolower($dbNetwork); }
-        if ($category)  { $sql .= ' AND category = ?';       $params[] = $category; }
-        $sql .= ' ORDER BY price ASC';
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $items = [];
-        foreach ($rows as $row) {
-            $days = (int)($row['duration'] ?? 0);
-            $unit = $row['validity_unit'] ?? 'day';
-            if ($unit === 'week')  $days *= 7;
-            if ($unit === 'month') $days *= 30;
-            $items[] = [
-                'biller_name'     => $row['name'],
-                'amount'          => $row['price'] !== null ? (float)$row['price'] : null,
-                'validity_period' => $days,
-                'group_name'      => strtoupper($row['network'] ?? '').' Data',
-                'service_key'     => $row['service_key'] ?? '',
-            ];
-        }
-        $billerCode = $network ?? $type;
-        return json_encode(['status'=>'success','data'=>['dataitems'=>[$billerCode=>$items]]], JSON_UNESCAPED_UNICODE);
+/**
+ * Apply a markup to a provider cost price and round to the nearest step.
+ *
+ * Markup constants are defined in configs.php:
+ *   MARKUP_1K    — markup added when base price ≤ ₦1,000
+ *   MARKUP_25K   — markup added when base price ≤ ₦2,500
+ *   MARKUP_MAX   — markup added when base price > ₦2,500
+ */
+function mockupPrice(float $basePrice): float
+{
+    if ($basePrice >= 1000) {
+        $roundedStep = 50;
+    } else {
+        $roundedStep = 10;
     }
-  
-function mockupPrice($basePrice){
 
-if($basePrice >= 1000){
-$roundedStep = 50;
-}else{
-$roundedStep = 10;
+    if ($basePrice <= 1000) {
+        $markupPrice = MARKUP_1K;
+    } elseif ($basePrice > 1000 && $basePrice <= 2500) {
+        $markupPrice = MARKUP_25K;
+    } else {
+        $markupPrice = MARKUP_MAX;
+    }
+
+    $markedUp     = $basePrice + $markupPrice;
+    $roundUpPrice = ceil($markedUp / $roundedStep) * $roundedStep;
+
+    return (float) $roundUpPrice;
 }
 
-if($basePrice <= 1000){
-	$markupPrice = MARKUP_1K;
-}else if($basePrice > 1000 && $basePrice <= 2500){
-	$markupPrice = MARKUP_25K;
-}else{
-	$markupPrice = MARKUP_MAX;
+// ── Backward-compatibility aliases ───────────────────────────────────────────
+
+/**
+ * Old auth guard used in legacy endpoint files.
+ * Prefer requireAuth() in all new code.
+ */
+function Securepg(): void
+{
+    requireAuth();
 }
 
-markedUp = $basePrice + $markupPrice;
-roundUpPrice = ceil(markedUp / $roundedStep) * $roundedStep;
+/**
+ * Alias for getAllServices — used in legacy home.php.
+ */
+function getServices(array $opts = []): string
+{
+    global $db;
+    return getAllServices($db);
+}
 
-return roundUpPrice;
+/**
+ * Fetch services filtered by type / network / category.
+ * Used by legacy show.php.
+ */
+function getServicesBy(?string $type, ?string $network, ?string $category): string
+{
+    global $db;
+    $dbNetwork = $network;
+    if ($network && substr($network, -5) === '-data') {
+        $dbNetwork = substr($network, 0, -5);
+    }
+    $sql    = 'SELECT * FROM services WHERE status = 1 AND id IN (SELECT DISTINCT service_id FROM provider_services WHERE status = 1)';
+    $params = [];
+    if ($type)      { $sql .= ' AND type = ?';           $params[] = $type; }
+    if ($dbNetwork) { $sql .= ' AND LOWER(network) = ?'; $params[] = strtolower($dbNetwork); }
+    if ($category)  { $sql .= ' AND category = ?';       $params[] = $category; }
+    $sql .= ' ORDER BY price ASC';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows  = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $items = [];
+    foreach ($rows as $row) {
+        $days = (int) ($row['duration'] ?? 0);
+        $unit = $row['validity_unit'] ?? 'day';
+        if ($unit === 'week')  $days *= 7;
+        if ($unit === 'month') $days *= 30;
+        $items[] = [
+            'id'              => (int) $row['id'],
+            'biller_name'     => $row['name'],
+            'amount'          => $row['price'] !== null ? (float) $row['price'] : null,
+            'validity_period' => $days,
+            'group_name'      => strtoupper($row['network'] ?? '') . ' Data',
+            'service_key'     => $row['service_key'] ?? '',
+        ];
+    }
+    $billerCode = $network ?? $type;
+    return json_encode(['status' => 'success', 'data' => ['dataitems' => [$billerCode => $items]]], JSON_UNESCAPED_UNICODE);
 }
