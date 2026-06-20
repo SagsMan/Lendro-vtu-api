@@ -1,59 +1,79 @@
 <?php
 /**
  * ProviderB — ConnectBridge integration
+ *
+ * ConnectBridge (connectbridge.com.ng) is our secondary/fallback provider.
+ * All services come directly from their live API — no static lists.
  */
 require_once __DIR__ . '/BaseProvider.php';
 require_once __DIR__ . '/../ProviderInterface.php';
 
 class ProviderB extends BaseProvider implements ProviderInterface
 {
+    /**
+     * Fetch all available services from ConnectBridge's live API.
+     */
     public function getServices(): array
     {
         $response = $this->request('/services', ['apikey' => $this->apiKey], 'GET');
         return $response['data'] ?? [];
     }
 
+    /**
+     * Normalise ConnectBridge's product list into our standard service structure.
+     */
     public function normalizeServices(array $raw): array
     {
         $services = [];
 
         foreach ($raw as $item) {
             $network  = strtolower(trim($item['network'] ?? ''));
-            $type     = strtolower(trim($item['type']    ?? 'data'));
-            $duration = (int) ($item['duration'] ?? 30);
-            $price    = isset($item['price']) ? (float) $item['price'] : null;
-            $name     = trim($item['plan'] ?? $item['name'] ?? '');
-            $code     = $item['code'] ?? $item['id'] ?? '';
+            $rawType  = strtolower(trim($item['type']    ?? 'data'));
+            $duration = isset($item['duration']) ? (int) $item['duration'] : null;
+            $price    = isset($item['price'])    ? (float) $item['price']  : null;
+            $name     = trim($item['plan']  ?? $item['name']  ?? '');
+            $code     = (string) ($item['code'] ?? $item['id'] ?? '');
+            $size     = trim($item['size']  ?? '');
 
-            // Determine category
-            $category = match ($type) {
-                'airtime'     => 'airtime',
-                'data'        => 'data',
+            // Map raw type → canonical category + normalised service type
+            $category = match ($rawType) {
                 'electricity' => 'electricity',
                 'cable'       => 'cable',
                 'education'   => 'education',
-                default       => $type,
+                'airtime'     => 'airtime',
+                default       => 'data',
             };
 
-            // Normalise to bill type for non-airtime/data
-            $normType = in_array($type, ['airtime', 'data', 'education']) ? $type : 'bill';
+            $normType = match ($rawType) {
+                'electricity', 'cable' => 'bill',
+                'education'            => 'education',
+                'airtime'              => 'airtime',
+                default                => 'data',
+            };
 
-            // Build service key
-            $serviceKey = strtolower("{$network}_{$type}");
-            if (!empty($item['size'])) {
-                $serviceKey .= '_' . strtolower(preg_replace('/\s+/', '', $item['size']));
+            // Build a consistent service key:  {network}_{type}_{size}_{duration}
+            $keyParts = [$network, $rawType];
+            if (!empty($size)) {
+                $keyParts[] = strtolower(preg_replace('/\s+/', '', $size));
             }
-            $serviceKey = preg_replace('/[^a-z0-9_]/', '', $serviceKey);
+            if ($duration && $rawType === 'data') {
+                $keyParts[] = $duration . 'day';
+            }
+            $serviceKey = preg_replace('/[^a-z0-9_]/', '', implode('_', $keyParts));
+
+            if (!$name) {
+                $name = strtoupper("{$network} {$rawType}" . ($size ? " {$size}" : ''));
+            }
 
             $services[] = [
                 'service_key'   => $serviceKey,
-                'name'          => $name ?: strtoupper("{$network} {$type}"),
+                'name'          => $name,
                 'type'          => $normType,
                 'network'       => $network,
                 'category'      => $category,
                 'duration'      => $duration,
                 'validity_unit' => 'day',
-                'provider_code' => (string) $code,
+                'provider_code' => $code,
                 'price'         => $price,
             ];
         }
@@ -61,6 +81,9 @@ class ProviderB extends BaseProvider implements ProviderInterface
         return $services;
     }
 
+    /**
+     * Purchase a service from ConnectBridge.
+     */
     public function purchase(array $payload): array
     {
         return $this->request('/purchase', [
@@ -72,6 +95,9 @@ class ProviderB extends BaseProvider implements ProviderInterface
         ], 'POST');
     }
 
+    /**
+     * Query a past transaction's status from ConnectBridge.
+     */
     public function queryTransaction(string $reference): array
     {
         return $this->request('/transaction-status', [
