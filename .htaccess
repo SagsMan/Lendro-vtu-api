@@ -6,6 +6,9 @@
       RewriteEngine On
       RewriteBase /
 
+      # app.html → frontend SPA (fixes white screen for bookmarked /app.html links)
+      RewriteRule ^app\.html$ public/index.php [L,QSA]
+
       # Let real files and directories through unchanged
       RewriteCond %{REQUEST_FILENAME} !-f
       RewriteCond %{REQUEST_FILENAME} !-d
