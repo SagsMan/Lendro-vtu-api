@@ -1,11 +1,6 @@
 <?php
 /**
  * ProviderA — CheapDataHub integration
- *
- * CheapDataHub (cheapdatahub.ng) is our primary data/airtime/electricity
- * provider. Their API uses an API-key as a query/body parameter.
- *
- * Docs: https://www.cheapdatahub.ng/api/docs/ (check their reseller portal)
  */
 require_once __DIR__ . '/BaseProvider.php';
 require_once __DIR__ . '/../ProviderInterface.php';
@@ -13,22 +8,11 @@ require_once __DIR__ . '/ProviderProductsA.php';
 
 class ProviderA extends BaseProvider implements ProviderInterface
 {
-    /**
-     * Pull the complete product catalogue from CheapDataHub.
-     * We delegate to ProviderProductsA which scrapes their HTML plan table
-     * and supplements it with static lists for airtime and electricity.
-     */
     public function getServices(): array
     {
-        // getCheapDataProducts() returns a plain array — no JSON decoding needed
         return ProviderProductsA::getCheapDataProducts();
     }
 
-    /**
-     * Convert CheapDataHub's raw product list into our standard service format.
-     *
-     * The $raw array is what getServices() returned: a flat list of product rows.
-     */
     public function normalizeServices(array $raw): array
     {
         $services = [];
@@ -36,34 +20,55 @@ class ProviderA extends BaseProvider implements ProviderInterface
         foreach ($raw as $item) {
             $planId       = (string) ($item['plan_id']     ?? '');
             $network      = strtolower(trim($item['network']      ?? ''));
-            $serviceType  = strtolower(trim($item['service']      ?? '')); // "airtime", "data", "bill"
-            $subtype      = strtolower(trim($item['type']         ?? '')); // "sme", "gifting", "bundle", "electricity"
-            $volume       = strtolower(trim($item['volume']       ?? '')); // "1GB", "500MB"
+            $serviceType  = strtolower(trim($item['service']      ?? '')); // "airtime","data","bill","education"
+            $subtype      = strtolower(trim($item['type']         ?? '')); // "sme","gifting","bundle","electricity","education","cable"
+            $volume       = strtolower(trim($item['volume']       ?? ''));
             $duration     = $item['duration']      ?? null;
             $validityType = $item['validity_type'] ?? '';
             $price        = isset($item['price']) ? (float) $item['price'] : null;
 
-            // Bills (electricity, cable) go under type=bill; keep the real category
-            if (!in_array($serviceType, ['airtime', 'data'])) {
-                $category    = $subtype;   // e.g. "electricity"
-                $serviceType = 'bill';
+            // Determine category and normalised type
+            if ($serviceType === 'airtime') {
+                $category = 'airtime';
+                // serviceType stays 'airtime'
+            } elseif ($serviceType === 'data') {
+                $category = 'data';
+                // serviceType stays 'data'
+            } elseif ($serviceType === 'education') {
+                $category    = 'education';
+                $serviceType = 'education';
             } else {
-                $category = $serviceType;  // "airtime" or "data"
+                // bill, cable, electricity, etc.
+                $category    = $subtype ?: $serviceType;
+                $serviceType = 'bill';
             }
 
-            // Build a clean, human-readable service key
-            // e.g. mtn_data_1gb_7day_sme  or  aedc_bill_electricity
-            $parts = array_filter([$network, $serviceType, $volume, $duration ? $duration . $validityType : '', $subtype]);
-            $serviceKey = implode('_', $parts);
+            // Build a clean service key
+            $keyParts = array_filter([
+                $network,
+                $serviceType,
+                $volume,
+                $duration ? $duration . $validityType : '',
+                // for airtime don't add the redundant 'airtime' subtype suffix
+                ($subtype && !in_array($subtype, ['airtime', 'data', 'bundle'])) ? $subtype : '',
+            ]);
+            $serviceKey = implode('_', $keyParts);
             $serviceKey = strtolower(preg_replace('/[^a-z0-9_]/', '', str_replace([' ', '.'], '_', $serviceKey)));
 
-            // Human name shown to users
-            $name = strtoupper(trim("{$network} {$serviceType} {$volume}"));
+            // Human-readable name
+            $name = strtoupper(trim("{$network} {$serviceType}"));
+            if ($volume) {
+                $name .= ' ' . strtoupper($volume);
+            }
             if ($duration) {
                 $name .= " ({$duration} " . ucfirst($validityType) . ($duration > 1 ? 's' : '') . ')';
             }
-            if ($subtype && !in_array($subtype, ['airtime', 'data', 'bill'])) {
+            if ($subtype && !in_array($subtype, ['airtime', 'data', 'bill', 'bundle', 'education'])) {
                 $name .= ' ' . strtoupper($subtype);
+            }
+            // Use the original plan_name for education (it's already clean)
+            if ($serviceType === 'education' && !empty($item['plan_name'])) {
+                $name = $item['plan_name'];
             }
 
             $services[] = [
@@ -82,12 +87,6 @@ class ProviderA extends BaseProvider implements ProviderInterface
         return $services;
     }
 
-    /**
-     * Purchase a service from CheapDataHub.
-     *
-     * The endpoint differs depending on service type (airtime vs data vs electricity).
-     * We detect the type from the payload and route accordingly.
-     */
     public function purchase(array $payload): array
     {
         $serviceType = strtolower($payload['service_type'] ?? 'data');
@@ -141,9 +140,6 @@ class ProviderA extends BaseProvider implements ProviderInterface
         }
     }
 
-    /**
-     * Check the status of a past transaction by our own reference.
-     */
     public function queryTransaction(string $reference): array
     {
         return $this->request('/transactions/' . urlencode($reference) . '/', [
