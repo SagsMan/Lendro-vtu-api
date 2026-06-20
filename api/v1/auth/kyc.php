@@ -140,7 +140,7 @@ $virtualAccount = null;
 if ($verifySuccess) {
     try {
         // Fetch user details for virtual account creation
-        $stmt = $db->prepare('SELECT email, fullname, phone FROM users WHERE id = ? LIMIT 1');
+        $stmt = $db->prepare('SELECT email, name, phone FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$userid]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -150,7 +150,7 @@ if ($verifySuccess) {
         $existingVA = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$existingVA && $userData) {
-            $nameParts = explode(' ', trim($userData['fullname'] ?? 'Lendro User'), 2);
+            $nameParts = explode(' ', trim($userData['name'] ?? 'Lendro User'), 2);
             $vaPayload = [
                 'first_name'      => $nameParts[0] ?? 'Lendro',
                 'last_name'       => $nameParts[1] ?? 'User',
