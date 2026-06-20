@@ -2,27 +2,26 @@
 
 const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setBusy}) => {
   const categories = services?.categories || [];
-  const airtimes = services?.airtime || [];
-  const mdatas = services?.data || [];
-  
-  //console.log("Data: ",mdatas);
-  
+  const airtimes   = services?.airtime    || [];
+  const mdatas     = services?.data       || [];
+
     return e("div", { className: "app-page pb-5" },
             e(inHeader,{pgtitle:"Partner Services",setPage,pg:"home"}),
-            
+
             e("div", { className: "app-content px-3 pb-5 mt-6 space-y-6" },
-              
-              //Progmatech Services
+
               e("div",{ className: "bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-3" },
-                  
+
                   //Airtime.......
                   e("h3", { className: "text-gray-900 text-left border-b border-gray-20 font-bold pb-1 mb-3" }, "Airtime Recharge"),
                   e("div", { className: "grid grid-cols-4 gap-4 mb-5" },
-                    
+
                     airtimes.filter(c => !["foreign-airtime"].includes(c.serviceID)).map((airtime,i) => {
                       let aName = airtime?.name || "", aCode = airtime?.serviceID || "", aImg = flwImages[aCode] || "", aMaxPrice = airtime?.maximum_amount || null;
+                      let aServiceId = airtime?.id || null; // DB service id added in getAllServices()
 
-                      return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => setPopupOpen({open:true, data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice} }) },
+                      return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
+                        onClick: () => setPopupOpen({open:true, data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice,serviceid:aServiceId} }) },
                               e("div", { className: `w-14 h-14 ${flwColors[aCode] || "bg-indigo-500"} rounded-xl flex items-center justify-center shadow-md` },
                                 e("img", {className: "w-7 h-7 text-white rounded-full object-cover",src:`${aImg}`})
                               ),
@@ -37,7 +36,8 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                     mdatas.map((mdata,i) => {
                       let aName = mdata?.name || "", aCode = mdata?.serviceID || "", aImg = flwImages[aCode] || "", aMaxPrice = mdata?.maximum_amount || null;
 
-                      return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => { setPopupOpen({open:false, data:{dwat:"viewdataitems",catname:"data",code:aCode,maxPrice:aMaxPrice}}); setPage("pageitems"); } },
+                      return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
+                        onClick: () => { setPopupOpen({open:false, data:{dwat:"viewdataitems",catname:"data",code:aCode,maxPrice:aMaxPrice}}); setPage("pageitems"); } },
                               e("div", { className: `w-14 h-14 ${flwColors[aCode] || "bg-indigo-500"} rounded-xl flex items-center justify-center shadow-md` },
                                 e("img", {className: "w-7 h-7 text-white rounded-full object-cover",src:`${aImg}`})
                               ),
@@ -45,13 +45,14 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                       )
                     })
                   ),
-                  
+
                   //Other Services........
                   e("h3", { className: "text-gray-900 text-left border-b border-gray-20 font-bold pb-1 mb-3" }, "Other Services"),
                   e("div", { className: "grid grid-cols-4 gap-4 mb-5" },
-                    categories.filter(c => c?.name && c?.identifier).filter(c => !["airtime","data","data","other-services"].includes(c.identifier)).map((category,i) => {
+                    categories.filter(c => c?.name && c?.identifier).filter(c => !["airtime","data","other-services"].includes(c.identifier)).map((category,i) => {
                       let catName = category?.name || "", catCode = category?.identifier || "";
-                      return (catName && catCode) && e("div", { key: catCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => {setPopupOpen({open:false, data:{dwat:"viewcatitems",catname:catName,code:catCode}}); setPage("pageitems"); } },
+                      return (catName && catCode) && e("div", { key: catCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
+                        onClick: () => {setPopupOpen({open:false, data:{dwat:"viewcatitems",catname:catName,code:catCode}}); setPage("pageitems"); } },
                               e("div", { className: `w-14 h-14 ${flwColors[catCode] || "bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md` },
                                 e("i", { "data-lucide": `${flwIcons[catCode] || "smartphone"}`, className: "w-7 h-7 text-white" })
                               ),
@@ -60,21 +61,18 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                     })
                   ),
 
-
                 ),
-              
+
                /* INFO CARD */
              e("div",{className:"bg-gray-50 rounded-2xl p-4 text-sm text-gray-600 flex items-start gap-3"},
-                e("i",{ 
+                e("i",{
                   "data-lucide":"info",
                   className:"w-5 h-5 text-indigo-500 shrink-0 mt-1"
                 }),
-
                 e("div",{className:"space-y-1"},
                   e("h3",{className:"text-gray-900 font-semibold"},
                     "Why Use Partner Services?"
                   ),
-
                   e("p",{className:"leading-relaxed"},
                     "Earn usage points whenever you use partner services. Reaching ",
                     e("b",null,`${ExpectedTotalCS} points`),
@@ -86,7 +84,7 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                   )
                 )
               ),
-              
+
             )
         );
 };
@@ -100,16 +98,18 @@ const ServicesOnHome = ({categories=[],airtime=[],setPage,popupOpen,setPopupOpen
   if (!categories?.length && !airtime?.length) return null;
 
     return e("div",{ className: "bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-3" },
-            e("div", { className: "mb-5" }, 
+            e("div", { className: "mb-5" },
                 e("h3", { className: "text-gray-900 font-bold" }, "Partner Services"),
                 e("p", { className: "text-sm text-gray-500" }, "Use partner services to earn usage points.")
             ),
             e("div", { className: "grid grid-cols-4 gap-3" },
 
-              airtime.filter(c => !["foreign-airtime"].includes(c.serviceID)).map((airtime,i) => { 
+              airtime.filter(c => !["foreign-airtime"].includes(c.serviceID)).map((airtime,i) => {
                  let aName = airtime?.name || "", aCode = airtime?.serviceID || "", aImg = flwImages[aCode] || "", aMaxPrice = airtime?.maximum_amount || null;
-                 
-                 return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => setPopupOpen({open:true, data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice} }) },
+                 let aServiceId = airtime?.id || null;
+
+                 return (aName && aCode) && e("div", { key: aCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
+                   onClick: () => setPopupOpen({open:true, data:{dwat:"buyairtime",biller:aName,code:aCode,maxPrice:aMaxPrice,serviceid:aServiceId} }) },
                         e("div", { className: `w-14 h-14 ${flwColors[aCode] || "bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md` },
                           e("img", {className: "w-7 h-7 text-white rounded-full object-cover",src:`${aImg}`})
                         ),
@@ -121,7 +121,7 @@ const ServicesOnHome = ({categories=[],airtime=[],setPage,popupOpen,setPopupOpen
                  let catName = category?.name || "", catCode = category?.identifier || "";
                  return (catName && catCode) && e("div", { key: catCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",onClick: () => setPage("services") },
                         e("div", { className: `w-14 h-14 ${flwColors[catCode] || "bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md` },
-                          e("i", { "data-lucide": `${flwIcons[catCode] || "smartphone"}`, className: "w-7 h-7 text-white" })                          
+                          e("i", { "data-lucide": `${flwIcons[catCode] || "smartphone"}`, className: "w-7 h-7 text-white" })
                         ),
                         e("span", { className: "text-xs text-center leading-tight" }, e("p",{className:"font-semibold text-gray-900"},`${flwNames[catName] || catName}`) )
                  )
@@ -139,10 +139,10 @@ const ServicesOnHome = ({categories=[],airtime=[],setPage,popupOpen,setPopupOpen
 };
 /////////////////////
 const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setBusy}) => {
-  const billercat = popupOpen?.data?.catname;
+  const billercat  = popupOpen?.data?.catname;
   const billercode = popupOpen?.data?.code;
-  const isData = billercat === "data";
-  const [items,setItems] = useState(services?.[billercode] || null);
+  const isData     = billercat === "data";
+  const [items,setItems]         = useState(services?.[billercode] || null);
   const [groupName,setGroupName] = useState(services?.[billercode]?.[0]?.group_name || "");
   const [durFilter,setDurFilter] = useState("all");
 
@@ -164,33 +164,32 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
   };
 
   const loadItems = async () => {
-          let url = "", ver = getStorage("lendro.services.ver"), body = {ver};
+          let url = "", body = {};
 
           if(popupOpen?.data?.dwat === "viewdataitems"){
-              url = `/client/show.php`;
-              body = { ...body, type:"data", network:billercode };
+              url  = `/client/show.php`;
+              body = { type:"data", network:billercode };
           } else if(popupOpen?.data?.dwat === "viewcatitems"){
-              url = `/client/show.php`;
-              body = { ...body, type:"bill", category:billercode };
+              url  = `/client/show.php`;
+              body = { type:"bill", category:billercode };
           } else if(popupOpen?.data?.dwat === "viewitems"){
-              url = `/client/show.php`;
-              body = { ...body, type:"bill", category:billercode };
-          } else if(popupOpen?.data?.dwat === "viewcatbiller"){
-              // reserved
+              url  = `/client/show.php`;
+              body = { type:"bill", category:billercode };
           }
-          
+
           if (!url) { setPage("services"); return; }
-          
+
           try {
             setBusy(true);
             const res = await apiFetch(url, body);
-            
+
             if(res?.status === "failed"){ showAlert(res?.message); setPage("services"); }
             if (res?.status === "success" && res.data) {
-              if (res.data?.dataitems){ 
-                  setGroupName(res.data?.dataitems?.[billercode]?.[0]?.group_name || billercode);
-                  setItems(res.data?.dataitems?.[billercode]);
-                  saveStorage("lendro.services",res.data?.dataitems?.[billercode], {merge:true});
+              if (res.data?.dataitems){
+                  const rawItems = res.data?.dataitems?.[billercode] || [];
+                  setGroupName(rawItems?.[0]?.group_name || billercode);
+                  setItems(rawItems);
+                  saveStorage("lendro.services",{[billercode]:rawItems}, {merge:true});
                   setServicesData(getStorage("lendro.services"));
               } else if (Array.isArray(res.data)) {
                   setItems(res.data);
@@ -204,7 +203,7 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
             setBusy(false);
           }
   };
-  
+
   useEffect(() => {
       loadItems();
   }, []);
@@ -237,7 +236,11 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
 
               e("div", { key: "preamounts", className: "flex flex-wrap items-center gap-3 mx-auto w-full mb-5" },
                 (visibleItems.length > 0) ? visibleItems.map((item,i)=>{
-                      return e("span", { key:i, className: "flex-[0_0_calc(33.333%-1rem)] px-3 py-2 bg-indigo-500/20 rounded-lg text-lg text-center min-h-[130px] cursor-pointer hover:bg-indigo-500/30 transition-colors", onClick:()=>setPopupOpen({open:true,data:{...popupOpen?.data,item}}) },
+                      return e("span", { key:i,
+                        className: "flex-[0_0_calc(33.333%-1rem)] px-3 py-2 bg-indigo-500/20 rounded-lg text-lg text-center min-h-[130px] cursor-pointer hover:bg-indigo-500/30 transition-colors",
+                        // Fix: pass dwat:"buydata" so the popup billerForm renders correctly
+                        onClick:()=>setPopupOpen({open:true, data:{...popupOpen?.data, dwat:"buydata", item}})
+                      },
                       e("p",{className:"text-md font-semibold"},`${ShortName(item.biller_name)}`),
                       e("p",{className:"text-md font-semibold"},`${formatCurrency(item.amount,false)}`),
                       e("p",{className:"text-xs font-semibold"},`${item.validity_period} ${(item.validity_period < 2)?"Day":"Days"} validity`),
