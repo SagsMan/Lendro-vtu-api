@@ -2,17 +2,16 @@
 /**
  * POST /api/v1/accounts/deposit
  *
- * Two-step SquadCo payment deposit flow:
+ * Two-step Squad wallet deposit flow:
  *
- * Step 1 — Initiate (category=deposit, status=pending)
- *   Creates a pending transaction + returns the reference for the SquadCo widget.
+ * Step 1  category=deposit  status=pending
+ *   Creates a pending transaction + returns the reference for the Squad widget.
  *
- * Step 2 — Verify (category=deposited, status=processed)
- *   Called after SquadCo payment widget completes.
- *   Verifies the payment with SquadCo, credits the wallet, marks the transaction.
+ * Step 2  category=deposited  status=processed
+ *   Called after the Squad widget completes.
+ *   Verifies payment with Squad, credits wallet, marks transaction success.
  */
 require_once __DIR__ . '/../db.php';
-require_once __DIR__ . '/../helpers/helpers.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendJson(['status' => 'failed', 'message' => 'Method not allowed.'], 405);
@@ -22,9 +21,9 @@ $userid   = requireAuth();
 $category = trim($_POST['category'] ?? '');
 $status   = trim($_POST['status']   ?? '');
 
-// ────────────────────────────────────────────────────────────────────────────────
-// STEP 1: Initiate deposit — record a pending transaction + return ref to frontend
-// ────────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 1 — Initiate: record pending transaction + return ref to frontend
+// ─────────────────────────────────────────────────────────────────────────────
 if ($category === 'deposit' && $status === 'pending') {
 
     $amount = (float) ($_POST['amount'] ?? 0);
@@ -35,27 +34,20 @@ if ($category === 'deposit' && $status === 'pending') {
         sendJson(['status' => 'failed', 'message' => 'Minimum deposit amount is ₦100.'], 422);
     }
 
-    // Fetch the user's email (SquadCo widget needs it)
+    // Fetch email for Squad widget
     $stmt = $db->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$userid]);
     $user  = $stmt->fetch(PDO::FETCH_ASSOC);
     $email = $user['email'] ?? 'user@lendro.ng';
 
-    // Generate a unique reference for this deposit
     $refno = generateRefNo('LDR-DEP');
 
-    // Create a pending transaction — we'll update it to "success" after verification
     $stmt = $db->prepare(
         "INSERT INTO transactions
             (userid, service_id, amount, transtype, refno, transtitle, transdesc, status, created_at)
-         VALUES (?, NULL, ?, 'deposit', ?, 'Deposit', ?, 'pending', NOW())"
+         VALUES (?, NULL, ?, 'deposit', ?, 'Wallet Deposit', ?, 'pending', NOW())"
     );
-    $stmt->execute([
-        $userid,
-        $amount,
-        $refno,
-        "Deposit ₦{$amount} (fee ₦{$fee})",
-    ]);
+    $stmt->execute([$userid, $amount, $refno, "Deposit ₦{$amount} (fee ₦{$fee})"]);
 
     sendJson([
         'status' => 'success',
@@ -67,23 +59,19 @@ if ($category === 'deposit' && $status === 'pending') {
     ]);
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// STEP 2: Verify — SquadCo has processed payment; confirm + credit wallet
-// ────────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 2 — Verify: Squad confirmed payment; credit wallet
+// ─────────────────────────────────────────────────────────────────────────────
 if ($category === 'deposited' && $status === 'processed') {
 
     $refno = trim($_POST['refno'] ?? '');
     $total = (float) ($_POST['total'] ?? 0);
 
-    if (!$userid) {
-        sendJson(['status' => 'failed', 'message' => 'Invalid user account.'], 401);
-    }
     if (!$refno) {
         sendJson(['status' => 'failed', 'message' => 'Transaction reference is required.'], 422);
     }
 
-    // ── Verify with SquadCo ──────────────────────────────────────────────────
-    // Use the configured SquadCo secret key from configs.php ($squad_SecretKey)
+    // ── Verify with Squad ─────────────────────────────────────────────────────
     $verifyUrl = rtrim($squard_Endpoint, '/') . '/transaction/verify/' . urlencode($refno);
 
     $ch = curl_init($verifyUrl);
@@ -99,6 +87,7 @@ if ($category === 'deposited' && $status === 'processed') {
     ]);
     $raw       = curl_exec($ch);
     $curlError = curl_error($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
     if ($curlError) {
@@ -108,23 +97,32 @@ if ($category === 'deposited' && $status === 'processed') {
 
     $res = json_decode($raw, true);
 
-    // SquadCo returns { "status": 200, "data": { "transaction_status": "success", "transaction_amount": 50000 }}
-    $squadStatus = (int) ($res['status'] ?? 0);
-    $txStatus    = strtolower((string) ($res['data']['transaction_status'] ?? ''));
+    // Squad returns: { "status": 200, "success": true, "data": { "transaction_status": "success", "transaction_amount": 50000 } }
+    // transaction_amount is in kobo (smallest unit)
+    $squadStatus  = (int) ($res['status'] ?? $httpCode ?? 0);
+    $txStatus     = strtolower(trim((string) ($res['data']['transaction_status'] ?? '')));
     $txAmountKobo = (float) ($res['data']['transaction_amount'] ?? 0);
-    $txAmount     = $txAmountKobo / 100; // convert kobo → naira
+    $txAmount     = $txAmountKobo / 100; // kobo → naira
 
-    if ($squadStatus !== 200 || $txStatus !== 'success') {
-        sendJson(['status' => 'failed', 'message' => 'Payment was not confirmed by SquadCo. Please try again.', 'data' => []]);
+    // Accept "success" or "successful" from Squad
+    $isSuccess = in_array($txStatus, ['success', 'successful', 'completed']);
+
+    if ($squadStatus !== 200 || !$isSuccess) {
+        error_log("[deposit verify] Squad response: HTTP {$httpCode} | status={$txStatus} | raw=" . substr($raw, 0, 500));
+        sendJson([
+            'status'  => 'failed',
+            'message' => 'Payment was not confirmed by Squad. Please try again or contact support.',
+            'data'    => [],
+        ]);
     }
 
-    // ── Credit wallet atomically ─────────────────────────────────────────────
+    // ── Credit wallet atomically ──────────────────────────────────────────────
     try {
         $db->beginTransaction();
 
-        // Lock our transaction record — prevent double-processing
+        // Lock transaction row — prevent double-processing
         $stmt = $db->prepare(
-            'SELECT id, amount, status, created_at FROM transactions
+            'SELECT id, amount, status FROM transactions
               WHERE userid = ? AND refno = ?
               LIMIT 1 FOR UPDATE'
         );
@@ -135,20 +133,21 @@ if ($category === 'deposited' && $status === 'processed') {
             throw new Exception('Transaction record not found.');
         }
         if ($txRow['status'] !== 'pending') {
-            throw new Exception('This deposit has already been processed.');
+            $db->commit();
+            sendJson(['status' => 'failed', 'message' => 'This deposit has already been processed.']);
         }
 
-        // Calculate how much to actually credit (handle SquadCo fee discrepancy)
+        // Determine amount to credit
         $declaredAmount = (float) $txRow['amount'];
 
-        if ($txAmount >= $declaredAmount) {
-            // SquadCo sent more than or exactly what was expected
-            $nFee    = $txAmount - $declaredAmount;
-            $nAmount = $declaredAmount;
+        if ($txAmount > 0 && $txAmount < $declaredAmount) {
+            // Squad deducted a gateway fee
+            $nFee    = $declaredAmount - $txAmount;
+            $nAmount = $txAmount;
         } else {
-            // SquadCo deducted a transaction fee from the total paid
-            $nFee    = $txAmount * $DWFee;
-            $nAmount = $txAmount - $nFee;
+            // Full amount or Squad sent more (shouldn't happen, but handle it)
+            $nFee    = $declaredAmount * $DWFee;
+            $nAmount = $declaredAmount - $nFee;
         }
 
         // Lock wallet
@@ -157,7 +156,7 @@ if ($category === 'deposited' && $status === 'processed') {
         $wallet = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$wallet) {
-            throw new Exception('Wallet not found. Contact support.');
+            throw new Exception('Wallet not found. Please contact support.');
         }
 
         $balanceBefore = (float) $wallet['balance'];
@@ -167,10 +166,10 @@ if ($category === 'deposited' && $status === 'processed') {
         $stmt = $db->prepare('UPDATE wallets SET balance = ?, updated_at = NOW() WHERE userid = ?');
         $stmt->execute([$balanceAfter, $userid]);
 
-        logWalletEvent($db, $userid, 'credit', $nAmount, $balanceBefore, $balanceAfter, $refno, "Deposit ₦{$nAmount}");
+        logWalletEvent($db, $userid, 'credit', $nAmount, $balanceBefore, $balanceAfter, $refno, "Deposit ₦" . number_format($nAmount, 2));
 
-        // Update transaction status
-        $desc = "Deposit ₦{$nAmount} (fee ₦{$nFee})";
+        // Mark transaction success
+        $desc = "Deposit ₦" . number_format($nAmount, 2) . " (fee ₦" . number_format($nFee, 2) . ")";
         $stmt = $db->prepare(
             "UPDATE transactions
                 SET status = 'success', transdesc = ?, amount = ?, updated_at = NOW()
@@ -180,28 +179,19 @@ if ($category === 'deposited' && $status === 'processed') {
 
         $db->commit();
 
-        // Return updated wallet + the new transaction entry
-        $stmt = $db->prepare('SELECT * FROM wallets WHERE userid = ? LIMIT 1');
+        // Return updated wallet
+        $stmt = $db->prepare('SELECT balance FROM wallets WHERE userid = ? LIMIT 1');
         $stmt->execute([$userid]);
         $updatedWallet = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $txEntry = [
-            'id'          => $txRow['id'],
-            'type'        => 'deposit',
-            'description' => 'Deposit',
-            'amount'      => $nAmount,
-            'time'        => 'Just now',
-            'status'      => 'success',
-        ];
-
         sendJson([
             'status'  => 'success',
-            'message' => "₦" . number_format($nAmount, 2) . " deposit was successful.",
+            'message' => '₦' . number_format($nAmount, 2) . ' deposited to your wallet.',
             'data'    => [
-                'wallet'       => $updatedWallet,
-                'amount'       => $nAmount,
-                'fee'          => $nFee,
-                'transactions' => $txEntry,
+                'balance'     => (float) $updatedWallet['balance'],
+                'amount'      => $nAmount,
+                'fee'         => $nFee,
+                'reference'   => $refno,
             ],
         ]);
 
@@ -214,5 +204,5 @@ if ($category === 'deposited' && $status === 'processed') {
     }
 }
 
-// ── Unknown action ────────────────────────────────────────────────────────────
+// Unknown action
 sendJson(['status' => 'failed', 'message' => 'Invalid deposit request.'], 422);
