@@ -46,6 +46,12 @@ define('MARKUP_STEP',10); //airtime: N10, data: N50, cable/others: N100
   $G_APIKEY   = getenv('VTPASS_APIKEY') ?: 'xxxxxxxxxxxxxxx';
   $G_Endpoint = getenv('VTPASS_URL')    ?: 'https://sandbox.vtpass.com/api';
 
+  // ── Deposit / withdrawal fee ─────────────────────────────────────────────────
+  $DWFee = 0.03; // 3% on deposit and withdrawal
+
+  // ── Squad secret key alias (used in deposit.php, kyc.php) ────────────────────
+  $squad_SecretKey = $squard_SK;
+
   // ── Misc app settings ─────────────────────────────────────────────────────────
   $CurrencySymbol     = '₦';
   $CacheExpiryinHrs   = 96;
