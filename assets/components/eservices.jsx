@@ -84,13 +84,12 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                   e("h3", { className: "text-gray-900 text-left border-b border-gray-20 font-bold pb-1 mb-3" }, "Other Services"),
                   e("div", { className: "grid grid-cols-4 gap-4 mb-5" },
                     (()=>{
-                      const excluded = ["airtime","data","other-services"];
+                      // Exclude categories already shown as Partner Service icons above
+                      const excluded = ["airtime","data","other-services","tv-subscription","cable","electricity","electricity-bill"];
                       const fromAPI  = (categories||[]).filter(c=>c?.name&&c?.identifier).filter(c=>!excluded.includes(c.identifier));
-                      // Hardcoded fallbacks — always show these even if not in DB
+                      // Fallback: Education is always shown here even if not in DB
                       const fallbacks = [
-                        {name:"Cable TV",   identifier:"tv-subscription"},
-                        {name:"Electricity",identifier:"electricity-bill"},
-                        {name:"Education",  identifier:"education"},
+                        {name:"Education", identifier:"education"},
                       ];
                       const apiCodes = new Set(fromAPI.map(c=>c.identifier));
                       const merged   = [...fromAPI, ...fallbacks.filter(f=>!apiCodes.has(f.identifier))];

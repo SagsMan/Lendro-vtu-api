@@ -105,14 +105,25 @@ if ($category === 'deposited' && $status === 'processed') {
     $txAmount     = $txAmountKobo / 100; // kobo → naira
 
     // Accept "success" or "successful" from Squad
-    $isSuccess = in_array($txStatus, ['success', 'successful', 'completed']);
+    $isSuccess    = in_array($txStatus, ['success', 'successful', 'completed']);
+    $isProcessing = in_array($txStatus, ['processing', 'pending', 'initiated']);
 
-    if ($squadStatus !== 200 || !$isSuccess) {
+    if ($squadStatus !== 200 || (!$isSuccess && !$isProcessing)) {
         error_log("[deposit verify] Squad response: HTTP {$httpCode} | status={$txStatus} | raw=" . substr($raw, 0, 500));
         sendJson([
             'status'  => 'failed',
             'message' => 'Payment was not confirmed by Squad. Please try again or contact support.',
             'data'    => [],
+        ]);
+    }
+
+    // Payment is still processing — Squad will confirm via webhook
+    if ($isProcessing && !$isSuccess) {
+        error_log("[deposit verify] Payment processing: ref={$refno} status={$txStatus}");
+        sendJson([
+            'status'  => 'processing',
+            'message' => 'Your payment is being processed. Your wallet will be credited automatically once confirmed.',
+            'data'    => ['reference' => $refno],
         ]);
     }
 
