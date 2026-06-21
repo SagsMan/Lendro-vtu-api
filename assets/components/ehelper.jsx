@@ -15,7 +15,7 @@ window.apiEndPoint = baseUrl + "/api/v1";
 // [0-planname,1-weight,2-price,3-slots,4-data_plan,5-duration,6-points,7-adpoints]..
 window.Plans = {"1":["Basic Plan",null,500,null,"500MB","(1day)",50,0],"2":["Bronze Plan",0.1,2000,2000,"1GB","(1day)",50,30],"3":["Platinum Plan",0.2,4000,2000,"1GB","(7days)",50,60],"4":["Diamond Plan",0.3,5000,2000,"2GB","(7days)",50,80],"7":"Community Partner"};
 
-window.flwImages = {"mtn":"assets/images/mtn.jpg","airtel":"assets/images/airtel.jpg","glo":"assets/images/glo.jpg","9mobile":"assets/images/9mobile.jpg","etisalat":"assets/images/etisalat.jpg","mtn-data":"assets/images/mtn.jpg","airtel-data":"assets/images/airtel.jpg","glo-data":"assets/images/glo.jpg","9mobile-data":"assets/images/9mobile.jpg","etisalat-data":"assets/images/etisalat.jpg","smile-direct":"assets/images/smile.jpg","spectranet":"assets/images/spectranet.jpg","glo-sme-data":"assets/images/glo.jpg"};
+window.flwImages = {"mtn":"assets/images/mtn.jpg","airtel":"assets/images/airtel.jpg","glo":"assets/images/glo.jpg","9mobile":"assets/images/9mobile.jpg","etisalat":"assets/images/etisalat.jpg","mtn-data":"assets/images/mtn.jpg","airtel-data":"assets/images/airtel.jpg","glo-data":"assets/images/glo.jpg","9mobile-data":"assets/images/9mobile.jpg","etisalat-data":"assets/images/etisalat.jpg","smile-direct":"assets/images/smile.jpg","spectranet":"assets/images/spectranet.jpg","glo-sme-data":"assets/images/glo.jpg","aedc":"assets/images/aedc.jpg","bedc":"assets/images/bedc.jpg","ekedc":"assets/images/ekedc.jpg","ibedc":"assets/images/ibedc.jpg","waec":"assets/images/waec.jpg","neco":"assets/images/neco.jpg","jamb":"assets/images/jamb.jpg","nabteb":"assets/images/nabteb.jpg"};
 
 window.flwNames = {"Airtime Recharge":"Airtime","Mobile Data Service":"Data","Data Services":"Data","Cable Bill Payment":"Cable TV","Cable TV Bundle":"Cable TV","Cable TV Subscription":"Cable TV","TV Subscription":"Cable TV","Electricity Bill":"Electricity","education":"Education","Education":"Education","Transport and Logistics":"Transport","insurance":"Insurance","Religious Institutions":"Religious","Schools & Professional Bodies":"Schools","MTN Airtime VTU":"MTN","Airtel Airtime VTU":"Airtel","GLO Airtime VTU":"GLO","9mobile Airtime VTU":"9mobile",
   "mtn-data":"MTN","glo-data":"GLO","airtel-data":"Airtel","9mobile-data":"9mobile","etisalat-data":"9mobile","smile-direct":"Smile","spectranet":"Spectranet","glo-sme-data":"GLO (SME)"};
@@ -43,7 +43,7 @@ window.categoryBillers = {
     {name:"GOtv",      code:"gotv",      icon:"tv",             color:"bg-orange-500"},
   ],
   "electricity-bill": [
-    {name:"AEDC",  code:"AEDC",  label:"Abuja Electric",         icon:"zap", color:"bg-yellow-500"},
+    {name:"AEDC",  code:"AEDC",  label:"Abuja Electric",         icon:"zap", color:"bg-blue-900",  img:"assets/images/aedc.jpg"},
     {name:"EKEDC", code:"EKEDC", label:"Eko Electric",           icon:"zap", color:"bg-blue-500"},
     {name:"IBEDC", code:"IBEDC", label:"Ibadan Electric",        icon:"zap", color:"bg-green-500"},
     {name:"IKEDC", code:"IKEDC", label:"Ikeja Electric",         icon:"zap", color:"bg-indigo-500"},
@@ -52,13 +52,13 @@ window.categoryBillers = {
     {name:"JED",   code:"JED",   label:"Jos Electric",           icon:"zap", color:"bg-orange-500"},
     {name:"EEDC",  code:"EEDC",  label:"Enugu Electric",         icon:"zap", color:"bg-teal-500"},
     {name:"YEDC",  code:"YEDC",  label:"Yola Electric",          icon:"zap", color:"bg-pink-500"},
-    {name:"BEDC",  code:"BEDC",  label:"Benin Electric",         icon:"zap", color:"bg-cyan-500"},
+    {name:"BEDC",  code:"BEDC",  label:"Benin Electric",         icon:"zap", color:"bg-green-800", img:"assets/images/bedc.jpg"},
   ],
   "education": [
-    {name:"WAEC",   code:"waec",   icon:"graduation-cap", color:"bg-blue-600"},
-    {name:"JAMB",   code:"jamb",   icon:"graduation-cap", color:"bg-green-700"},
-    {name:"NECO",   code:"neco",   icon:"graduation-cap", color:"bg-red-600"},
-    {name:"NABTEB", code:"nabteb", icon:"graduation-cap", color:"bg-purple-600"},
+    {name:"WAEC",   code:"waec",   icon:"graduation-cap", color:"bg-blue-800",   img:"assets/images/waec.jpg"},
+    {name:"JAMB",   code:"jamb",   icon:"graduation-cap", color:"bg-green-700",  img:""},
+    {name:"NECO",   code:"neco",   icon:"graduation-cap", color:"bg-green-600",  img:"assets/images/neco.jpg"},
+    {name:"NABTEB", code:"nabteb", icon:"graduation-cap", color:"bg-purple-600", img:""},
   ],
 };
 window.categoryTitles = {

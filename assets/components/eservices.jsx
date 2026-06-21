@@ -128,22 +128,26 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
 ///////////////
 
 const ServicesOnHome = ({categories=[],airtime=[],data=[],setPage,popupOpen,setPopupOpen,setBusy}) => {
-  // Always show all 4 partner service icons regardless of DB seed state
+  // Always show all 5 partner service icons regardless of DB seed state
   const homeIcons = [
-    { key:"airtime",   label:"Airtime",   color:"bg-amber-500",   icon:"smartphone",    onClick:()=>setPage("services") },
-    { key:"data",      label:"Data",      color:"bg-sky-500",     icon:"wifi",          onClick:()=>setPage("services") },
-    { key:"cable",     label:"Cable TV",  color:"bg-blue-700",    icon:"tv",
+    { key:"airtime",     label:"Airtime",     color:"bg-amber-500",  icon:"smartphone",
+      onClick:()=>setPage("services") },
+    { key:"data",        label:"Data",        color:"bg-sky-500",    icon:"wifi",
+      onClick:()=>setPage("services") },
+    { key:"electricity", label:"Electricity", color:"bg-yellow-600", icon:"zap",
+      onClick:()=>{ setPopupOpen({open:false,data:{dwat:"viewcatitems",catname:"Electricity",code:"electricity-bill"}}); setPage("pageitems"); } },
+    { key:"cable",       label:"Cable TV",    color:"bg-blue-700",   icon:"tv",
       onClick:()=>{ setPopupOpen({open:false,data:{dwat:"viewcatitems",catname:"Cable TV",code:"tv-subscription"}}); setPage("pageitems"); } },
-    { key:"education", label:"Education", color:"bg-green-700",   icon:"graduation-cap",
+    { key:"education",   label:"Education",   color:"bg-green-700",  icon:"graduation-cap",
       onClick:()=>{ setPopupOpen({open:false,data:{dwat:"viewcatitems",catname:"Education",code:"education"}}); setPage("pageitems"); } },
   ];
 
   return e("div",{ className: "bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-3" },
-    e("div", { className: "mb-5" },
+    e("div", { className: "mb-4" },
       e("h3", { className: "text-gray-900 font-bold" }, "Partner Services"),
       e("p", { className: "text-sm text-gray-500" }, "Use partner services to earn usage points.")
     ),
-    e("div", { className: "grid grid-cols-4 gap-3" },
+    e("div", { className: "grid grid-cols-3 gap-3" },
       homeIcons.map(ic =>
         e("div",{key:ic.key, className:"flex flex-col items-center gap-2 cursor-pointer", onClick:ic.onClick},
           e("div",{className:`w-14 h-14 ${ic.color} rounded-xl flex items-center justify-center shadow-md`},
@@ -165,9 +169,11 @@ const ServicesOnHome = ({categories=[],airtime=[],data=[],setPage,popupOpen,setP
 };
 /////////////////////
 const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setBusy}) => {
-  const billercat  = popupOpen?.data?.catname;
-  const billercode = popupOpen?.data?.code;
-  const isData     = billercat === "data";
+  // Capture context on mount — don't re-read from popupOpen so cancel/popup changes don't break the page
+  const [billercat]  = useState(popupOpen?.data?.catname || "");
+  const [billercode] = useState(popupOpen?.data?.code    || "");
+  const [initDwat]   = useState(popupOpen?.data?.dwat    || "viewcatitems");
+  const isData       = billercat === "data";
   const [items,setItems]         = useState(services?.[billercode] || null);
   const [groupName,setGroupName] = useState(services?.[billercode]?.[0]?.group_name || "");
   const [durFilter,setDurFilter] = useState("all");
@@ -196,13 +202,13 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
   const loadItems = async () => {
           let url = "", body = {};
 
-          if(popupOpen?.data?.dwat === "viewdataitems"){
+          if(initDwat === "viewdataitems"){
               url  = `/client/show.php`;
               body = { type:"data", network:billercode };
-          } else if(popupOpen?.data?.dwat === "viewcatitems" && !staticBillers){
+          } else if(initDwat === "viewcatitems" && !staticBillers){
               url  = `/client/show.php`;
               body = { type:"bill", category:billercode };
-          } else if(popupOpen?.data?.dwat === "viewitems"){
+          } else if(initDwat === "viewitems"){
               url  = `/client/show.php`;
               body = { type:"bill", category:billercode };
           }
@@ -276,13 +282,13 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
                 )
               ),
 
-              (items) && e("h3",{className:"text-base font-semibold text-gray-700 mt-1"},
+              (!staticBillers) && (items) && e("h3",{className:"text-base font-semibold text-gray-700 mt-1"},
                 durFilter === "all"
                   ? `Explore our ${UCaseNetworkOnly(groupName)} below.`
                   : `${filterLabels.find(f=>f.key===durFilter)?.label} plans`
               ),
 
-              e("div", { key: "preamounts", className: "flex flex-wrap items-center gap-3 mx-auto w-full mb-5" },
+              (!staticBillers) && e("div", { key: "preamounts", className: "flex flex-wrap items-center gap-3 mx-auto w-full mb-5" },
                 (visibleItems.length > 0) ? visibleItems.map((item,i)=>{
                       return e("span", { key:i,
                         className: "flex-[0_0_calc(33.333%-1rem)] px-3 py-2 bg-indigo-500/20 rounded-lg text-lg text-center min-h-[130px] cursor-pointer hover:bg-indigo-500/30 transition-colors",
@@ -294,11 +300,11 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
                       e("p",{className:"text-xs font-semibold"},`${item.validity_period} ${(item.validity_period < 2)?"Day":"Days"} validity`),
                       e("p",{className:"text-xs"},`${PlanType(item.validity_period)}`),
                     )
-                }) : e("div",{className:"w-full text-center py-8 text-gray-400 text-sm"},
+                }) : (!staticBillers) ? e("div",{className:"w-full text-center py-8 text-gray-400 text-sm"},
                         (isData && durFilter !== "all")
                           ? `No ${filterLabels.find(f=>f.key===durFilter)?.label} plans found.`
                           : "Loading plans…"
-                      )
+                      ) : null
               )
             )
         );

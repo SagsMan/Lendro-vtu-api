@@ -16,7 +16,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ── Service markup ────────────────────────────────────────────────────────────
-define('MARKUP', 0.15);         // 15% markup on provider cost price
+define('MARKUP_1K',   20);   // ₦20  added when base price ≤ ₦1,000
+define('MARKUP_25K',  50);   // ₦50  added when base price ≤ ₦2,500
+define('MARKUP_MAX', 100);   // ₦100 added when base price > ₦2,500
+define('MARKUP_STEP', 10);   // airtime: ₦10, data: ₦50, cable/others: ₦100
 
 // ── App base URL ──────────────────────────────────────────────────────────────
 define('BASE_URL', 'https://lendro.trackd.live');

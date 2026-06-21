@@ -1,23 +1,32 @@
 //////// After Deposit or Withdrawal Confirm...
 const VerifyFund = async ({refno,total,setWalletData,setMaxCUPoint,setTransactions})=>{
-      const r = await apiFetch("/accounts/deposit.php", {category:"deposited",status:"processed",refno:refno,total:total});
-      try{
-              if (r.status === "success" && r.data) {
-                  if(r.data?.wallet){
-                      saveStorage("lendro.wallet",r.data?.wallet,{merge:true});
-                      setWalletData(r.data?.wallet);
-                      setMaxCUPoint(r.data?.wallet.maxusage);
-                  }
-                  if(r.data?.transactions){
-                    setTransactions(prev => [r.data?.transactions, ...prev]);
-                  }
-                  alert(`${formatCurrency(r.data?.amount)} deposit was successful.`);
-              }else{
-                alert(`Deposit of ${formatCurrency(r.data?.amount || total)} failed. Contact support if your bank was debited.`);
-              }
-      }catch(e){
-        alert("Process interrupted, contact us for assistance!");
-      }
+  try{
+    const r = await apiFetch("/accounts/deposit.php", {category:"deposited",status:"processed",refno:refno,total:total});
+    if (r?.status === "success" || r?.status === "processing") {
+        // Update wallet state
+        if(r.data?.wallet){
+            saveStorage("lendro.wallet",r.data.wallet,{merge:true});
+            setWalletData(r.data.wallet);
+            if(r.data.wallet.maxusage) setMaxCUPoint(r.data.wallet.maxusage);
+        }
+        if(r.data?.transactions) setTransactions(prev => [...r.data.transactions, ...prev]);
+        // Always force-refresh wallet from server after deposit
+        try {
+          const wr = await apiFetch(apiEndPoint+"/client/wallet");
+          if(wr?.status==="success"){
+            const wdata = wr.data?.wallet || {balance: wr.balance || 0};
+            saveStorage("lendro.wallet",wdata,{merge:true});
+            setWalletData(wdata);
+            if(wr.transactions) setTransactions(wr.transactions);
+          }
+        } catch(_){}
+        alert(`${formatCurrency(r.data?.amount || total)} deposit was successful.`);
+    }else{
+      alert(`Deposit of ${formatCurrency(r.data?.amount || total)} failed or is pending. Contact support if your bank was debited.`);
+    }
+  }catch(e){
+    alert("Process interrupted. Contact support if your bank was debited.");
+  }
 }
 
 //////////////////// Buy......
@@ -86,13 +95,18 @@ const Buy = async ({category,data,setWalletData,setMaxCUPoint,setBusy,setPopupOp
             // Auto-refresh wallet balance from server after any successful purchase
             try {
               const wr = await apiFetch(apiEndPoint+"/client/wallet");
-              if(wr?.status==="success" && wr?.data?.wallet){
-                saveStorage("lendro.wallet",wr.data.wallet,{merge:true});
-                setWalletData(wr.data.wallet);
-                setMaxCUPoint(wr.data.wallet.maxusage);
+              if(wr?.status==="success"){
+                const wdata = wr.data?.wallet || {balance: wr.balance || 0};
+                saveStorage("lendro.wallet",wdata,{merge:true});
+                setWalletData(wdata);
+                if(wdata.maxusage) setMaxCUPoint(wdata.maxusage);
+                if(wr.transactions) setTransactions(wr.transactions);
               }
             } catch(_){}
         }
+        // Refresh transactions immediately after any successful purchase
+        if(res?.transactions) setTransactions(res.transactions);
+
         if(category === "airtime"){
           alert(`${formatCurrency(data?.amount)} airtime request submitted. Ref: ${res?.reference || ""}`);
 
@@ -111,8 +125,12 @@ const Buy = async ({category,data,setWalletData,setMaxCUPoint,setBusy,setPopupOp
           let txrefno = res.data?.transaction_ref;
 
           SquadPay(email, amt, txrefno).then(ref => {
-              VerifyFund({refno:ref, total:amt, setWalletData, setMaxCUPoint, setTransactions});
-          }).catch(err => { console.log("SquadPay closed/error:", err); });
+              VerifyFund({refno:ref||txrefno, total:amt, setWalletData, setMaxCUPoint, setTransactions});
+          }).catch(err => {
+              // Squad sometimes closes modal after payment — still try to verify
+              console.log("SquadPay closed/error:", err);
+              if(txrefno){ VerifyFund({refno:txrefno, total:amt, setWalletData, setMaxCUPoint, setTransactions}); }
+          });
         }
       }else{
         const m = res?.message || res?.data?.message;
