@@ -418,3 +418,36 @@ UPDATE providers SET auth_mode='token' WHERE slug='connectbridge';
 | 2026-06-20 | Smart card/meter Verify step before Cable TV / Electricity purchase |
 | 2026-06-20 | ConnectBridge Token auth (`Authorization: Token`) |
 | 2026-06-20 | Wallet balance auto-refreshes after every successful purchase |
+
+---
+
+## ConnectBridge — No Product Listing API (Important)
+
+ConnectBridge does **not** expose a product-listing endpoint. `ProviderB::getServices()` returns `[]` by design. The `populate-services` cronjob skips it with `"No products returned"` — this is expected.
+
+**Fix:** A static catalogue is seeded into the DB via:
+```
+GET https://lendro.trackd.live/api/v1/client/seed-connectbridge.php?key=seed2024
+```
+
+This script:
+1. Pings ConnectBridge `/api/user` and shows HTTP status + raw response
+2. Shows service count before and after seed
+3. Inserts 27 static services (airtime × 4 networks, data × 9 plans, cable × 5 plans, electricity × 5 DISCOs, education × 4 bodies) and links them to ConnectBridge in `provider_services`
+
+Run it once after deployment. Re-running is safe (skips existing rows).
+
+---
+
+## Changelog (continued)
+
+| Date | Summary |
+|---|---|
+| 2026-06-21 | Electricity added to Home Partner Services (now 5 icons in 2-row grid) |
+| 2026-06-21 | Cancel from cable/electricity popup returns to plan grid (billercode in local state) |
+| 2026-06-21 | "Loading plans…" hidden on static biller pages (cable/electricity/education) |
+| 2026-06-21 | SquadCo deposit: catch still calls VerifyFund (fixes "success but shows failed") |
+| 2026-06-21 | Wallet balance refreshes immediately after every deposit/purchase |
+| 2026-06-21 | AEDC / NECO / WAEC / BEDC logos uploaded and used in biller grid |
+| 2026-06-21 | Markup updated: MARKUP_1K=₦20, MARKUP_25K=₦50, MARKUP_MAX=₦100, MARKUP_STEP=₦10 |
+| 2026-06-21 | ConnectBridge seed script seeds 27 services into DB (no listing API workaround) |
