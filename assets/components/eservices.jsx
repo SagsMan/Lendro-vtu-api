@@ -83,16 +83,28 @@ const Services = ({services,wallet,Per5Point,setPage,popupOpen,setPopupOpen,setB
                   //Other Services........
                   e("h3", { className: "text-gray-900 text-left border-b border-gray-20 font-bold pb-1 mb-3" }, "Other Services"),
                   e("div", { className: "grid grid-cols-4 gap-4 mb-5" },
-                    categories.filter(c => c?.name && c?.identifier).filter(c => !["airtime","data","other-services"].includes(c.identifier)).map((category,i) => {
-                      let catName = category?.name || "", catCode = category?.identifier || "";
-                      return (catName && catCode) && e("div", { key: catCode || i, className: "flex flex-col items-center gap-2 cursor-pointer",
-                        onClick: () => {setPopupOpen({open:false, data:{dwat:"viewcatitems",catname:catName,code:catCode}}); setPage("pageitems"); } },
-                              e("div", { className: `w-14 h-14 ${flwColors[catCode] || "bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md` },
-                                e("i", { "data-lucide": `${flwIcons[catCode] || "smartphone"}`, className: "w-7 h-7 text-white" })
-                              ),
-                              e("span", { className: "text-xs text-center leading-tight" }, e("p",{className:"font-semibold text-gray-900"},`${flwNames[catName] || catName}`) )
-                      )
-                    })
+                    (()=>{
+                      const excluded = ["airtime","data","other-services"];
+                      const fromAPI  = (categories||[]).filter(c=>c?.name&&c?.identifier).filter(c=>!excluded.includes(c.identifier));
+                      // Hardcoded fallbacks — always show these even if not in DB
+                      const fallbacks = [
+                        {name:"Cable TV",   identifier:"tv-subscription"},
+                        {name:"Electricity",identifier:"electricity-bill"},
+                        {name:"Education",  identifier:"education"},
+                      ];
+                      const apiCodes = new Set(fromAPI.map(c=>c.identifier));
+                      const merged   = [...fromAPI, ...fallbacks.filter(f=>!apiCodes.has(f.identifier))];
+                      return merged.map((category,i)=>{
+                        let catName=category?.name||"", catCode=category?.identifier||"";
+                        return (catName&&catCode) && e("div",{key:catCode||i,className:"flex flex-col items-center gap-2 cursor-pointer",
+                          onClick:()=>{setPopupOpen({open:false,data:{dwat:"viewcatitems",catname:catName,code:catCode}});setPage("pageitems");}},
+                          e("div",{className:`w-14 h-14 ${flwColors[catCode]||"bg-yellow-500"} rounded-xl flex items-center justify-center shadow-md`},
+                            e("i",{"data-lucide":`${flwIcons[catCode]||"smartphone"}`,className:"w-7 h-7 text-white"})
+                          ),
+                          e("span",{className:"text-xs text-center leading-tight"},e("p",{className:"font-semibold text-gray-900"},`${flwNames[catName]||catName}`))
+                        );
+                      });
+                    })()
                   ),
 
                 ),
@@ -260,8 +272,10 @@ const PageItems = ({services,setServicesData,wallet,Per5Point,setPage,popupOpen,
                       const dwat=dwatMap[billercode]||"buybill";
                       setPopupOpen({open:true,data:{dwat,provider:biller.code,providerName:biller.name,catname:billercat,catcode:billercode}});
                     }},
-                    e("div",{className:`w-12 h-12 ${biller.color} rounded-xl flex items-center justify-center shadow-md`},
-                      e("i",{"data-lucide":biller.icon,className:"w-6 h-6 text-white"})
+                    e("div",{className:`w-12 h-12 ${biller.img?"bg-white border border-gray-100":biller.color} rounded-xl flex items-center justify-center shadow-md overflow-hidden`},
+                      biller.img
+                        ? e("img",{src:biller.img,alt:biller.name,className:"w-full h-full object-contain p-1 rounded-xl"})
+                        : e("i",{"data-lucide":biller.icon,className:"w-6 h-6 text-white"})
                     ),
                     e("p",{className:"text-xs font-bold text-gray-900 text-center"},biller.name),
                     biller.label&&e("p",{className:"text-xs text-gray-500 text-center"},biller.label)
